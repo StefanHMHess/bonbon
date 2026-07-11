@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="BonBon Logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffe27a"/>
+      <stop offset="100%" stop-color="#ff8f57"/>
+    </linearGradient>
+    <linearGradient id="candy" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ff4e6a"/>
+      <stop offset="100%" stop-color="#ff7a3d"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="120" fill="url(#bg)"/>
+
+  <g transform="translate(70 190)">
+    <polygon points="0,66 75,20 75,112" fill="#fff6da"/>
+    <polygon points="372,66 297,20 297,112" fill="#fff6da"/>
+    <ellipse cx="186" cy="66" rx="130" ry="92" fill="url(#candy)"/>
+    <path d="M92 66c0-53 52-72 94-72 29 0 58 9 78 27-16-5-32-8-50-8-60 0-92 30-92 53s32 53 92 53c18 0 34-3 50-8-20 18-49 27-78 27-42 0-94-19-94-72z" fill="#ff9bb3" opacity="0.7"/>
+    <circle cx="227" cy="38" r="12" fill="#ffe8f0"/>
+    <circle cx="253" cy="55" r="8" fill="#ffe8f0"/>
+  </g>
+
+  <text x="256" y="430" text-anchor="middle" font-size="82" font-family="'Trebuchet MS', 'Segoe UI', sans-serif" fill="#7e2b1f" font-weight="700">BonBon</text>
+</svg>
