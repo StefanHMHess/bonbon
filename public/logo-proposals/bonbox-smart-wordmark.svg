@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 280" role="img" aria-label="BonBox Smart Kassenbox Wordmark">
+  <defs>
+    <linearGradient id="box" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#18b6a3"/>
+      <stop offset="100%" stop-color="#0f9f8d"/>
+    </linearGradient>
+  </defs>
+  <rect x="20" y="20" width="240" height="240" rx="54" fill="#effaf8"/>
+  <rect x="56" y="80" width="168" height="136" rx="20" fill="url(#box)"/>
+  <path d="M56 122h168" stroke="#0b6b60" stroke-width="12" stroke-linecap="round"/>
+  <rect x="104" y="58" width="72" height="24" rx="8" fill="#0f7f73"/>
+  <rect x="108" y="106" width="64" height="88" rx="8" fill="#f7fffe"/>
+  <path d="M118 126h44M118 140h44M118 154h34" stroke="#9cc7c1" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="202" cy="188" r="14" fill="#ff6b57"/>
+  <text x="300" y="165" font-size="106" font-family="Sora, 'Segoe UI', sans-serif" font-weight="700" fill="#10243e">BonBox</text>
+  <text x="304" y="210" font-size="28" font-family="Manrope, 'Segoe UI', sans-serif" fill="#3f5e72">Scan. Sort. Save.</text>
+</svg>

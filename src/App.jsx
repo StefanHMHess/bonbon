@@ -21,7 +21,7 @@ function sumItems(receipts, gift) {
 }
 
 function App() {
-  const [householdId, setHouseholdId] = useState(defaultHouseholdId);
+  const householdId = defaultHouseholdId;
   const [receipts, setReceipts] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -207,36 +207,42 @@ function App() {
   return (
     <div className="page">
       <header className="hero">
-        <img src="/bonbon-logo.svg" alt="BonBon" className="hero-logo" />
+        <img src="/bonbon-logo.svg" alt="BonBox" className="hero-logo" />
         <div>
-          <h1>BonBon</h1>
+          <h1>BonBox</h1>
           <p>Belege scannen, KI auswerten, Haushaltsbuch automatisch pflegen.</p>
         </div>
       </header>
 
-      <section className="panel setup-panel">
-        <h2>Supabase Setup</h2>
-        <label>Household ID</label>
-        <input
-          value={householdId}
-          onChange={(e) => setHouseholdId(e.target.value.trim())}
-          placeholder="UUID aus Tabelle households"
-        />
-        {!isSupabaseConfigured && (
-          <p className="hint error">Bitte .env ausfüllen: VITE_SUPABASE_URL und VITE_SUPABASE_ANON_KEY.</p>
-        )}
-      </section>
+      {!hasSetup && (
+        <section className="panel setup-panel">
+          <h2>Konfiguration fehlt</h2>
+          <p className="hint error">
+            Bitte in .env die Werte für VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY und
+            VITE_DEFAULT_HOUSEHOLD_ID setzen.
+          </p>
+        </section>
+      )}
 
       <section className="grid two">
         <article className="panel">
           <h2>Neuen Beleg erfassen</h2>
           <p className="hint">Foto oder Scan auswählen und von der KI auslesen lassen.</p>
-          <input
-            type="file"
-            accept="image/*,application/pdf"
-            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-          />
-          {selectedFile && <p className="hint">Ausgewählt: {selectedFile.name}</p>}
+          <div className="file-picker">
+            <input
+              id="receipt-upload"
+              className="file-input-hidden"
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+            />
+            <label htmlFor="receipt-upload" className="btn secondary file-trigger">
+              Beleg auswählen
+            </label>
+            <p className="hint file-name">
+              {selectedFile ? `Ausgewählt: ${selectedFile.name}` : "Noch keine Datei ausgewählt"}
+            </p>
+          </div>
           <button className="btn" disabled={!selectedFile || busy || !hasSetup} onClick={uploadAndExtract}>
             {busy ? "Analysiere..." : "Beleg per KI auswerten"}
           </button>
