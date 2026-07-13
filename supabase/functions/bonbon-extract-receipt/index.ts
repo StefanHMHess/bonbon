@@ -60,7 +60,6 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: openaiModel,
-        temperature: 0,
         messages: [
           {
             role: "user",
