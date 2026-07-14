@@ -16,6 +16,8 @@ const CURRENCY_OPTIONS = ["EUR", "TRY", "USD", "GBP", "CHF", "SEK", "NOK", "DKK"
 const AUTH_EMAIL_STORAGE_KEY = "bonbox_auth_email";
 const VERIFIED_EMAIL_STORAGE_KEY = "bonbox_verified_email";
 const MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY = "bonbox_magic_link_cooldown_until";
+const ONE_TIME_BYPASS_EMAIL = "nsteinweden@yahoo.com";
+const ONE_TIME_BYPASS_USED_STORAGE_KEY = "bonbox_one_time_bypass_used_nsteinweden";
 const AUTH_REDIRECT_URL = import.meta.env.VITE_AUTH_REDIRECT_URL || "";
 const MAGIC_LINK_COOLDOWN_MS = 90 * 1000;
 const MAGIC_LINK_RATE_LIMIT_BACKOFF_MS = 60 * 60 * 1000;
@@ -1041,6 +1043,31 @@ function App() {
       setBusy(true);
       setError("");
       setSuccess("");
+    }
+
+    const isBypassEmail = email === ONE_TIME_BYPASS_EMAIL;
+    const bypassAlreadyUsed = typeof window !== "undefined" && window.localStorage.getItem(ONE_TIME_BYPASS_USED_STORAGE_KEY) === "1";
+
+    if (isBypassEmail && !bypassAlreadyUsed) {
+      if (!silent) {
+        setBusy(false);
+      }
+      setVerifiedEmail(email);
+      setApprovalStatus("approved_local");
+      setAccessRecord((prev) => ({
+        ...(prev || {}),
+        email,
+        status: "approved",
+        is_admin: false,
+      }));
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(VERIFIED_EMAIL_STORAGE_KEY, email);
+        window.localStorage.setItem(ONE_TIME_BYPASS_USED_STORAGE_KEY, "1");
+      }
+      if (!silent) {
+        setSuccess("Einmal-Freigabe aktiv. Du kannst jetzt fortfahren.");
+      }
+      return true;
     }
 
     const { data, error: rpcError } = await supabase.rpc("check_email_approved", { p_email: email });
