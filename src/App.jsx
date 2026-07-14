@@ -278,6 +278,16 @@ function getMagicLinkRedirectUrl() {
   return undefined;
 }
 
+function isLocalhostUrl(value) {
+  if (!value) return false;
+  try {
+    const parsed = new URL(value);
+    return parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
 function App() {
   const householdId = defaultHouseholdId;
   const [receipts, setReceipts] = useState([]);
@@ -905,11 +915,17 @@ function App() {
       return;
     }
 
+    const redirectUrl = getMagicLinkRedirectUrl();
+    if (!AUTH_REDIRECT_URL && isLocalhostUrl(redirectUrl)) {
+      setError("Magic-Link-Redirect ist lokal (localhost). Bitte VITE_AUTH_REDIRECT_URL auf die Netlify-URL setzen, dann erneut senden.");
+      return;
+    }
+
     setBusy(true);
     const { error: authError } = await supabase.auth.signInWithOtp({
       email: value,
       options: {
-        emailRedirectTo: getMagicLinkRedirectUrl(),
+        emailRedirectTo: redirectUrl,
       },
     });
     setBusy(false);
