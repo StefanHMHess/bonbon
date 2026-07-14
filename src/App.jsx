@@ -18,7 +18,7 @@ const VERIFIED_EMAIL_STORAGE_KEY = "bonbox_verified_email";
 const MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY = "bonbox_magic_link_cooldown_until";
 const AUTH_REDIRECT_URL = import.meta.env.VITE_AUTH_REDIRECT_URL || "";
 const MAGIC_LINK_COOLDOWN_MS = 90 * 1000;
-const MAGIC_LINK_RATE_LIMIT_BACKOFF_MS = 15 * 60 * 1000;
+const MAGIC_LINK_RATE_LIMIT_BACKOFF_MS = 60 * 60 * 1000;
 
 const defaultCostGroups = [
   {
@@ -295,6 +295,27 @@ function isLocalhostUrl(value) {
   } catch {
     return false;
   }
+}
+
+function getRateLimitBackoffMs(errorMessage) {
+  const text = String(errorMessage || "").toLowerCase();
+
+  const secondsMatch = text.match(/(\d+)\s*(s|sec|secs|second|seconds)/);
+  if (secondsMatch) {
+    return Number(secondsMatch[1]) * 1000;
+  }
+
+  const minutesMatch = text.match(/(\d+)\s*(m|min|mins|minute|minutes)/);
+  if (minutesMatch) {
+    return Number(minutesMatch[1]) * 60 * 1000;
+  }
+
+  const hoursMatch = text.match(/(\d+)\s*(h|hr|hrs|hour|hours)/);
+  if (hoursMatch) {
+    return Number(hoursMatch[1]) * 60 * 60 * 1000;
+  }
+
+  return MAGIC_LINK_RATE_LIMIT_BACKOFF_MS;
 }
 
 function App() {
@@ -973,17 +994,18 @@ function App() {
     setBusy(false);
 
     if (authError) {
-      const msg = String(authError.message || "").toLowerCase();
+      const rawMessage = String(authError.message || "");
+      const msg = rawMessage.toLowerCase();
       if (msg.includes("email rate limit") || msg.includes("over_email_send_rate_limit") || msg.includes("limit exceeded")) {
-        const until = Date.now() + MAGIC_LINK_RATE_LIMIT_BACKOFF_MS;
+        const until = Date.now() + getRateLimitBackoffMs(rawMessage);
         setMagicLinkNow(Date.now());
         setMagicLinkCooldownUntil(until);
         if (typeof window !== "undefined") {
           window.localStorage.setItem(MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY, String(until));
         }
-        setError("E-Mail-Limit erreicht. Bitte 15 Minuten warten und dann erneut senden.");
+        setError("E-Mail-Limit bei Supabase erreicht. Ohne Custom SMTP sind oft nur wenige Mails pro Stunde erlaubt. Bitte später erneut versuchen oder SMTP aktivieren.");
       } else {
-        setError(authError.message);
+        setError(rawMessage);
       }
       return;
     }
