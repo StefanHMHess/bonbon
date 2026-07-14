@@ -931,7 +931,12 @@ function App() {
     setBusy(false);
 
     if (authError) {
-      setError(authError.message);
+      const msg = String(authError.message || "").toLowerCase();
+      if (msg.includes("email rate limit") || msg.includes("over_email_send_rate_limit") || msg.includes("limit exceeded")) {
+        setError("E-Mail-Limit erreicht. Bitte kurz warten und es in einigen Minuten erneut versuchen.");
+      } else {
+        setError(authError.message);
+      }
       return;
     }
 
