@@ -1,11 +1,36 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+/// <reference path="./shims.d.ts" />
+/// <reference lib="deno.ns" />
+import { createClient } from "@supabase/supabase-js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-Deno.serve(async (req) => {
+function normalizeCurrencyCode(value: unknown) {
+  const normalized = String(value || "EUR").trim().toUpperCase();
+  if (normalized === "TL" || normalized === "₺" || normalized === "TRY") return "TRY";
+  if (normalized === "EURO") return "EUR";
+  return normalized || "EUR";
+}
+
+function roundMoney(value: unknown) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
+async function getExchangeRateToEur(currency: string) {
+  const normalized = normalizeCurrencyCode(currency);
+  if (normalized === "EUR") return 1;
+
+  const rateResponse = await fetch(`https://api.frankfurter.app/latest?from=${normalized}&to=EUR`);
+  if (!rateResponse.ok) return 1;
+
+  const rateJson = await rateResponse.json();
+  const rate = Number(rateJson?.rates?.EUR || 1);
+  return Number.isFinite(rate) && rate > 0 ? rate : 1;
+}
+
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -46,9 +71,10 @@ Deno.serve(async (req) => {
 
     const prompt = [
       "Extrahiere den Kassenbon als JSON.",
+      "Erkenne die Originalwährung zuverlässig. Türkische Lira immer als TRY ausgeben.",
       "Antwortformat exakt:",
       '{"merchant":"...","receiptDate":"YYYY-MM-DD","totalAmount":0,"currency":"EUR","items":[{"description":"...","quantity":1,"amount":0}]}',
-      "Werte nur als Zahlen für amount/quantity.",
+      "Werte amount/quantity immer in Originalwährung.",
       "Keinen zusätzlichen Text ausgeben."
     ].join("\n");
 
@@ -96,7 +122,29 @@ Deno.serve(async (req) => {
       };
     }
 
-    return new Response(JSON.stringify(parsed), {
+    const currency = normalizeCurrencyCode(parsed.currency || "EUR");
+    const exchangeRate = await getExchangeRateToEur(currency);
+    const originalTotalAmount = roundMoney(parsed.totalAmount || 0);
+    const totalAmount = roundMoney(originalTotalAmount * exchangeRate);
+    const items = Array.isArray(parsed.items) ? parsed.items.map((item: any) => {
+      const originalAmount = roundMoney(item?.amount || 0);
+      return {
+        ...item,
+        currency,
+        original_amount: originalAmount,
+        exchange_rate: exchangeRate,
+        amount: roundMoney(originalAmount * exchangeRate),
+      };
+    }) : [];
+
+    return new Response(JSON.stringify({
+      ...parsed,
+      currency,
+      originalTotalAmount,
+      exchangeRate,
+      totalAmount,
+      items,
+    }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

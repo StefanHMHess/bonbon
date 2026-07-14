@@ -1,16 +1,28 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { defaultHouseholdId, isSupabaseConfigured, supabase } from "./lib/supabase";
 
 const euro = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
+const amountDE = new Intl.NumberFormat("de-DE", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 const dateTimeDE = new Intl.DateTimeFormat("de-DE", {
   dateStyle: "short",
   timeStyle: "short",
 });
 const dateDE = new Intl.DateTimeFormat("de-DE", { dateStyle: "short" });
 const APP_VERSION = "v0.3.0";
-const ACCESS_EMAIL_KEY = "bonbox_access_email";
+const CURRENCY_OPTIONS = ["EUR", "TRY", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF"];
+const AUTH_EMAIL_STORAGE_KEY = "bonbox_auth_email";
+const VERIFIED_EMAIL_STORAGE_KEY = "bonbox_verified_email";
 
 const defaultCostGroups = [
+  {
+    id: "grp-gifts",
+    name: "Geschenke",
+    color: "#ff6b57",
+    keywords: ["geschenk", "gift", "present"],
+  },
   {
     id: "grp-food",
     name: "Lebensmittel",
@@ -49,17 +61,24 @@ const defaultCostGroups = [
   },
 ];
 
+const defaultFamilyAccount = {
+  id: "family-default",
+  name: "Familienkonto",
+  color: "#10243e",
+  account_type: "family",
+};
+
 const emptyDraft = {
   description: "",
   quantity: 1,
   amount: "",
-  is_gift: false,
+  currency: "EUR",
+  category: "",
 };
 
-function sumItems(receipts, gift) {
+function sumItems(receipts) {
   return receipts.reduce((acc, receipt) => {
     const chunk = (receipt.receipt_items || []).reduce((rowAcc, item) => {
-      if (Boolean(item.is_gift) !== gift) return rowAcc;
       return rowAcc + Number(item.amount || 0);
     }, 0);
     return acc + chunk;
@@ -76,6 +95,50 @@ function formatReceiptDateTime(receipt) {
   }
 
   return "-";
+}
+
+function formatReceiptOriginalTotal(receipt) {
+  const items = Array.isArray(receipt?.receipt_items) ? receipt.receipt_items : [];
+  if (!items.length) {
+    return `${amountDE.format(Number(receipt?.total_amount || 0))} EUR`;
+  }
+
+  const totalsByCurrency = new Map();
+  for (const item of items) {
+    const currency = normalizeCurrencyCode(item?.currency || receipt?.currency || "EUR");
+    const original = Number(item?.original_amount ?? item?.amount ?? 0);
+    const old = totalsByCurrency.get(currency) || 0;
+    totalsByCurrency.set(currency, old + original);
+  }
+
+  if (!totalsByCurrency.size) {
+    return `${amountDE.format(Number(receipt?.total_amount || 0))} EUR`;
+  }
+
+  if (totalsByCurrency.size === 1) {
+    const [currency, total] = totalsByCurrency.entries().next().value;
+    return `${amountDE.format(total)} ${currency}`;
+  }
+
+  return Array.from(totalsByCurrency.entries())
+    .map(([currency, total]) => `${amountDE.format(total)} ${currency}`)
+    .join(" + ");
+}
+
+function getReceiptEurTotal(receipt) {
+  const items = Array.isArray(receipt?.receipt_items) ? receipt.receipt_items : [];
+  if (!items.length) {
+    return Number(receipt?.total_amount || 0);
+  }
+
+  return items.reduce((sum, item) => sum + Number(item?.amount || 0), 0);
+}
+
+function parseReceiptDate(receipt) {
+  const raw = receipt?.receipt_date || receipt?.created_at;
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function normalizeText(text) {
@@ -109,10 +172,105 @@ function parseKeywords(text) {
     .filter(Boolean);
 }
 
+function formatAmountDE(value) {
+  return amountDE.format(Number(value || 0));
+}
+
+function parseAmountDE(value) {
+  const normalized = String(value || "")
+    .trim()
+    .replace(/\./g, "")
+    .replace(",", ".");
+
+  if (!normalized) return 0;
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeCurrencyCode(value) {
+  const normalized = String(value || "EUR").trim().toUpperCase();
+  if (normalized === "TL" || normalized === "TRY" || normalized === "TYR" || normalized === "₺") return "TRY";
+  if (normalized === "EURO") return "EUR";
+  return normalized || "EUR";
+}
+
+function roundMoney(value) {
+  return Number(Number(value || 0).toFixed(2));
+}
+
+function normalizeHexColor(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const hex = raw.startsWith("#") ? raw.slice(1) : raw;
+  if (/^[0-9a-fA-F]{6}$/.test(hex)) return `#${hex.toLowerCase()}`;
+  if (/^[0-9a-fA-F]{3}$/.test(hex)) {
+    const expanded = hex.split("").map((ch) => `${ch}${ch}`).join("");
+    return `#${expanded.toLowerCase()}`;
+  }
+  return null;
+}
+
+function getReadableTextColor(hexColor) {
+  const normalized = normalizeHexColor(hexColor);
+  if (!normalized) return "#10243e";
+  const r = Number.parseInt(normalized.slice(1, 3), 16);
+  const g = Number.parseInt(normalized.slice(3, 5), 16);
+  const b = Number.parseInt(normalized.slice(5, 7), 16);
+  const luminance = (0.299 * r) + (0.587 * g) + (0.114 * b);
+  return luminance > 160 ? "#10243e" : "#ffffff";
+}
+
+function buildColorInputStyle(value) {
+  const normalized = normalizeHexColor(value);
+  if (!normalized) return undefined;
+  return {
+    backgroundColor: normalized,
+    color: getReadableTextColor(normalized),
+    borderColor: "rgba(16, 36, 62, 0.24)",
+    fontWeight: 700,
+  };
+}
+
+function buildSummaryRowStyle(color) {
+  const normalized = normalizeHexColor(color);
+  if (!normalized) return undefined;
+
+  const r = Number.parseInt(normalized.slice(1, 3), 16);
+  const g = Number.parseInt(normalized.slice(3, 5), 16);
+  const b = Number.parseInt(normalized.slice(5, 7), 16);
+
+  return {
+    backgroundColor: `rgba(${r}, ${g}, ${b}, 0.14)`,
+    borderColor: `rgba(${r}, ${g}, ${b}, 0.5)`,
+  };
+}
+
+function buildReceiptItemPayload(base, includeCurrencyColumns) {
+  const payload = {
+    receipt_id: base.receipt_id,
+    position: base.position,
+    description: base.description,
+    quantity: base.quantity,
+    amount: base.amount,
+    category: base.category,
+  };
+
+  if (includeCurrencyColumns) {
+    payload.original_amount = base.original_amount;
+    payload.currency = base.currency;
+    payload.exchange_rate = base.exchange_rate;
+  }
+
+  return payload;
+}
+
 function App() {
   const householdId = defaultHouseholdId;
   const [receipts, setReceipts] = useState([]);
   const [costGroups, setCostGroups] = useState([]);
+  const [familyAccounts, setFamilyAccounts] = useState([]);
+  const [itemAllocations, setItemAllocations] = useState([]);
   const [busy, setBusy] = useState(false);
   const [previewBusy, setPreviewBusy] = useState(false);
   const [error, setError] = useState("");
@@ -121,21 +279,44 @@ function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [manualDraft, setManualDraft] = useState(emptyDraft);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
+  const [amountDrafts, setAmountDrafts] = useState({});
   const [showCostGroupModal, setShowCostGroupModal] = useState(false);
-  const [emailInput, setEmailInput] = useState("");
-  const [accessEmail, setAccessEmail] = useState("");
+  const [costGroupModalView, setCostGroupModalView] = useState("summary");
+  const [newReceiptAccountId, setNewReceiptAccountId] = useState(defaultFamilyAccount.id);
+  const [authEmail, setAuthEmail] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem(AUTH_EMAIL_STORAGE_KEY) || "";
+  });
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [accessRecord, setAccessRecord] = useState(null);
+  const [approvalStatus, setApprovalStatus] = useState("signed_out");
+  const [verifiedEmail, setVerifiedEmail] = useState("");
+  const [pendingUsers, setPendingUsers] = useState([]);
+  const [bootstrapBusy, setBootstrapBusy] = useState(false);
   const [costGroupDrafts, setCostGroupDrafts] = useState({});
   const [costGroupCatalogReady, setCostGroupCatalogReady] = useState(true);
   const [costGroupCatalogMessage, setCostGroupCatalogMessage] = useState("");
+  const [accountCatalogReady, setAccountCatalogReady] = useState(true);
+  const [accountCatalogMessage, setAccountCatalogMessage] = useState("");
+  const [accountDrafts, setAccountDrafts] = useState({});
+  const [receiptItemCurrencyColumnsReady, setReceiptItemCurrencyColumnsReady] = useState(true);
   const [newCostGroup, setNewCostGroup] = useState({
     name: "",
     color: "#18b6a3",
     keywordsText: "",
     sortOrder: 100,
   });
+  const [newAccount, setNewAccount] = useState({
+    name: "",
+    color: "#18b6a3",
+    accountType: "person",
+    sortOrder: 100,
+  });
+  const exchangeRateCache = useRef(new Map());
+  const repairedItemIds = useRef(new Set());
 
-  const mainAccountTotal = useMemo(() => sumItems(receipts, false), [receipts]);
-  const giftAccountTotal = useMemo(() => sumItems(receipts, true), [receipts]);
+  const mainAccountTotal = useMemo(() => sumItems(receipts), [receipts]);
 
   const costGroupTotals = useMemo(() => {
     const groups = activeCostGroups();
@@ -144,7 +325,6 @@ function App() {
 
     for (const receipt of receipts) {
       for (const item of receipt.receipt_items || []) {
-        if (Boolean(item.is_gift)) continue;
         const groupName = item.category || "Ohne Kostengruppe";
         const old = totals.get(groupName) || 0;
         totals.set(groupName, old + Number(item.amount || 0));
@@ -160,59 +340,806 @@ function App() {
       .sort((a, b) => b.total - a.total);
   }, [receipts, costGroups]);
 
+  const costGroupDetails = useMemo(() => {
+    const groups = activeCostGroups();
+    const colorByName = new Map(groups.map((group) => [group.name, group.color]));
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const monthsElapsed = month + 1;
+    const details = new Map();
+
+    for (const receipt of receipts) {
+      const receiptDate = parseReceiptDate(receipt);
+      const isYear = receiptDate ? receiptDate.getFullYear() === year : false;
+      const isMonth = isYear && receiptDate.getMonth() === month;
+
+      for (const item of receipt.receipt_items || []) {
+        const groupName = item.category || "Ohne Kostengruppe";
+        const row = details.get(groupName) || {
+          name: groupName,
+          color: colorByName.get(groupName) || "#456279",
+          total: 0,
+          yearTotal: 0,
+          monthTotal: 0,
+          averagePerMonth: 0,
+        };
+        const amount = Number(item.amount || 0);
+        row.total += amount;
+        if (isYear) row.yearTotal += amount;
+        if (isMonth) row.monthTotal += amount;
+        details.set(groupName, row);
+      }
+    }
+
+    const rows = Array.from(details.values())
+      .map((row) => ({
+        ...row,
+        averagePerMonth: monthsElapsed > 0 ? row.yearTotal / monthsElapsed : 0,
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    const overall = rows.reduce((acc, row) => {
+      acc.total += row.total;
+      acc.yearTotal += row.yearTotal;
+      acc.monthTotal += row.monthTotal;
+      return acc;
+    }, { total: 0, yearTotal: 0, monthTotal: 0, averagePerMonth: 0 });
+
+    overall.averagePerMonth = monthsElapsed > 0 ? overall.yearTotal / monthsElapsed : 0;
+    return { rows, overall };
+  }, [receipts, costGroups]);
+
+  const accountTotals = useMemo(() => {
+    const accounts = familyAccounts.length ? familyAccounts : [defaultFamilyAccount];
+    const accountById = new Map(accounts.map((a) => [a.id, a]));
+    const totals = new Map();
+    const allocByItemId = new Map();
+
+    for (const alloc of itemAllocations) {
+      const list = allocByItemId.get(alloc.receipt_item_id) || [];
+      list.push(alloc);
+      allocByItemId.set(alloc.receipt_item_id, list);
+    }
+
+    for (const receipt of receipts) {
+      for (const item of receipt.receipt_items || []) {
+        const itemAmount = Number(item.amount || 0);
+        const allocations = allocByItemId.get(item.id) || [];
+
+        if (!allocations.length) {
+          const old = totals.get(defaultFamilyAccount.id) || 0;
+          totals.set(defaultFamilyAccount.id, old + itemAmount);
+          continue;
+        }
+
+        const totalAllocatedRaw = allocations.reduce((sum, alloc) => sum + Number(alloc.amount || 0), 0);
+        const factor = totalAllocatedRaw > itemAmount && totalAllocatedRaw > 0 ? itemAmount / totalAllocatedRaw : 1;
+
+        let allocated = 0;
+        for (const alloc of allocations) {
+          const amount = Number(alloc.amount || 0) * factor;
+          const old = totals.get(alloc.account_id) || 0;
+          totals.set(alloc.account_id, old + amount);
+          allocated += amount;
+        }
+
+        if (allocated < itemAmount) {
+          const old = totals.get(defaultFamilyAccount.id) || 0;
+          totals.set(defaultFamilyAccount.id, old + (itemAmount - allocated));
+        }
+      }
+    }
+
+    return Array.from(totals.entries())
+      .map(([accountId, total]) => {
+        const account = accountById.get(accountId) || (accountId === defaultFamilyAccount.id ? defaultFamilyAccount : null);
+        return {
+          id: accountId,
+          name: account?.name || "Unbekanntes Konto",
+          color: account?.color || "#456279",
+          total,
+        };
+      })
+      .sort((a, b) => b.total - a.total);
+  }, [receipts, familyAccounts, itemAllocations]);
+
+  const accountDetails = useMemo(() => {
+    const accounts = familyAccounts.length ? familyAccounts : [defaultFamilyAccount];
+    const accountById = new Map(accounts.map((a) => [a.id, a]));
+    const allocByItemId = new Map();
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const monthsElapsed = month + 1;
+    const details = new Map();
+
+    for (const alloc of itemAllocations) {
+      const list = allocByItemId.get(alloc.receipt_item_id) || [];
+      list.push(alloc);
+      allocByItemId.set(alloc.receipt_item_id, list);
+    }
+
+    for (const receipt of receipts) {
+      const receiptDate = parseReceiptDate(receipt);
+      const isYear = receiptDate ? receiptDate.getFullYear() === year : false;
+      const isMonth = isYear && receiptDate.getMonth() === month;
+
+      for (const item of receipt.receipt_items || []) {
+        const itemAmount = Number(item.amount || 0);
+        const allocations = allocByItemId.get(item.id) || [];
+        const totalAllocatedRaw = allocations.reduce((sum, alloc) => sum + Number(alloc.amount || 0), 0);
+        const factor = totalAllocatedRaw > itemAmount && totalAllocatedRaw > 0 ? itemAmount / totalAllocatedRaw : 1;
+
+        let allocated = 0;
+        for (const alloc of allocations) {
+          const accountId = alloc.account_id || defaultFamilyAccount.id;
+          const row = details.get(accountId) || {
+            id: accountId,
+            name: accountById.get(accountId)?.name || "Unbekanntes Konto",
+            color: accountById.get(accountId)?.color || "#456279",
+            total: 0,
+            yearTotal: 0,
+            monthTotal: 0,
+            averagePerMonth: 0,
+          };
+          const amount = Number(alloc.amount || 0) * factor;
+          row.total += amount;
+          if (isYear) row.yearTotal += amount;
+          if (isMonth) row.monthTotal += amount;
+          details.set(accountId, row);
+          allocated += amount;
+        }
+
+        if (allocated < itemAmount) {
+          const accountId = defaultFamilyAccount.id;
+          const row = details.get(accountId) || {
+            id: accountId,
+            name: accountById.get(accountId)?.name || defaultFamilyAccount.name,
+            color: accountById.get(accountId)?.color || defaultFamilyAccount.color,
+            total: 0,
+            yearTotal: 0,
+            monthTotal: 0,
+            averagePerMonth: 0,
+          };
+          const amount = itemAmount - allocated;
+          row.total += amount;
+          if (isYear) row.yearTotal += amount;
+          if (isMonth) row.monthTotal += amount;
+          details.set(accountId, row);
+        }
+      }
+    }
+
+    const rows = Array.from(details.values())
+      .map((row) => ({
+        ...row,
+        averagePerMonth: monthsElapsed > 0 ? row.yearTotal / monthsElapsed : 0,
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    const overall = rows.reduce((acc, row) => {
+      acc.total += row.total;
+      acc.yearTotal += row.yearTotal;
+      acc.monthTotal += row.monthTotal;
+      return acc;
+    }, { total: 0, yearTotal: 0, monthTotal: 0, averagePerMonth: 0 });
+
+    overall.averagePerMonth = monthsElapsed > 0 ? overall.yearTotal / monthsElapsed : 0;
+    return { rows, overall };
+  }, [receipts, familyAccounts, itemAllocations]);
+
+  const accountOptions = useMemo(() => {
+    const next = [...familyAccounts];
+    const hasFamily = next.some((x) => x.account_type === "family");
+    if (!hasFamily) {
+      next.unshift(defaultFamilyAccount);
+    }
+    return next;
+  }, [familyAccounts]);
+
+  const selectedUploadAccount = useMemo(() => {
+    return accountOptions.find((account) => account.id === newReceiptAccountId) || defaultFamilyAccount;
+  }, [accountOptions, newReceiptAccountId]);
+
+  const primaryAccountByItemId = useMemo(() => {
+    const map = new Map();
+
+    for (const alloc of itemAllocations) {
+      const amount = Number(alloc.amount || 0);
+      const current = map.get(alloc.receipt_item_id);
+      if (!current || amount > current.amount) {
+        map.set(alloc.receipt_item_id, { accountId: alloc.account_id, amount });
+      }
+    }
+
+    return map;
+  }, [itemAllocations]);
+
   const hasSetup = isSupabaseConfigured && householdId;
+  const isApproved = approvalStatus === "approved";
+  const isEmailVerified = Boolean(verifiedEmail);
+  const canUseApp = hasSetup && ((Boolean(session?.user) && isApproved) || isEmailVerified);
+  const isAdmin = Boolean(accessRecord?.is_admin);
+  const displayEmail = session?.user?.email || verifiedEmail || "";
 
   useEffect(() => {
-    const saved = localStorage.getItem(ACCESS_EMAIL_KEY) || "";
-    setAccessEmail(saved);
-    setEmailInput(saved);
+    if (typeof window === "undefined") return;
+    if (!authEmail) {
+      window.localStorage.removeItem(AUTH_EMAIL_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(AUTH_EMAIL_STORAGE_KEY, String(authEmail || "").trim().toLowerCase());
+  }, [authEmail]);
+
+  async function getExchangeRateToEur(currency) {
+    const normalized = normalizeCurrencyCode(currency);
+    if (normalized === "EUR") return 1;
+
+    if (exchangeRateCache.current.has(normalized)) {
+      return exchangeRateCache.current.get(normalized);
+    }
+
+    try {
+      const rateResult = await supabase.functions.invoke("bonbon-extract-receipt", {
+        body: { mode: "rate", currency: normalized },
+      });
+
+      if (!rateResult.error) {
+        const rate = Number(rateResult.data?.rate || 0);
+        if (Number.isFinite(rate) && rate > 0) {
+          exchangeRateCache.current.set(normalized, rate);
+          return rate;
+        }
+      }
+    } catch {
+      // Fallback below
+    }
+
+    try {
+      const fallbackResponse = await fetch(`https://open.er-api.com/v6/latest/${normalized}`);
+      if (!fallbackResponse.ok) {
+        throw new Error("Fallback-Kursabfrage fehlgeschlagen.");
+      }
+
+      const fallbackData = await fallbackResponse.json();
+      const fallbackRate = Number(fallbackData?.rates?.EUR || 0);
+      if (Number.isFinite(fallbackRate) && fallbackRate > 0) {
+        exchangeRateCache.current.set(normalized, fallbackRate);
+        return fallbackRate;
+      }
+    } catch {
+      // Final fallback below
+    }
+
+    if (!error) {
+      setError("Wechselkurs konnte nicht geladen werden. Bitte später erneut versuchen.");
+    }
+    return 1;
+  }
+
+  function getItemOriginalAmount(item) {
+    return Number(item?.original_amount ?? item?.amount ?? 0);
+  }
+
+  function getItemExchangeRate(item) {
+    const currency = normalizeCurrencyCode(item?.currency || "EUR");
+    if (currency === "EUR") return 1;
+    return Number(item?.exchange_rate || 1) || 1;
+  }
+
+  function formatConvertedInfo(item) {
+    const currency = normalizeCurrencyCode(item?.currency || "EUR");
+    if (currency === "EUR") return euro.format(Number(item?.amount || 0));
+
+    return `${amountDE.format(getItemOriginalAmount(item))} ${currency} ≈ ${euro.format(Number(item?.amount || 0))}`;
+  }
+
+  async function recalculateReceiptTotal(receiptId) {
+    if (!receiptId) return;
+
+    const { data, error: sumError } = await supabase
+      .from("receipt_items")
+      .select("amount")
+      .eq("receipt_id", receiptId);
+
+    if (sumError) {
+      setError(sumError.message);
+      return;
+    }
+
+    const total = (data || []).reduce((acc, row) => acc + Number(row.amount || 0), 0);
+    const { error: updateError } = await supabase
+      .from("receipts")
+      .update({ total_amount: roundMoney(total) })
+      .eq("id", receiptId);
+
+    if (updateError) {
+      setError(updateError.message);
+    }
+  }
+
+  async function clearReceiptItems(receiptId) {
+    const rpcResult = await supabase.rpc("clear_receipt_items", { p_receipt_id: receiptId });
+    if (!rpcResult.error) {
+      return { ok: true };
+    }
+
+    const deleteResult = await supabase
+      .from("receipt_items")
+      .delete()
+      .eq("receipt_id", receiptId);
+
+    if (deleteResult.error) {
+      return {
+        ok: false,
+        message: `${rpcResult.error.message}. Bitte supabase_receipt_cleanup.sql ausführen.`,
+      };
+    }
+
+    const verify = await supabase
+      .from("receipt_items")
+      .select("id", { count: "exact", head: true })
+      .eq("receipt_id", receiptId);
+
+    if (verify.error) {
+      return { ok: false, message: verify.error.message };
+    }
+
+    if ((verify.count || 0) > 0) {
+      return { ok: false, message: "Vorhandene Positionen konnten nicht entfernt werden. Bitte supabase_receipt_cleanup.sql ausführen." };
+    }
+
+    return { ok: true };
+  }
+
+  async function deleteReceiptById(receiptId) {
+    const rpcResult = await supabase.rpc("delete_receipt_cascade", { p_receipt_id: receiptId });
+    if (!rpcResult.error) {
+      return { ok: true };
+    }
+
+    const deleteResult = await supabase
+      .from("receipts")
+      .delete()
+      .eq("id", receiptId);
+
+    if (deleteResult.error) {
+      return {
+        ok: false,
+        message: `${rpcResult.error.message}. Bitte supabase_receipt_cleanup.sql ausführen.`,
+      };
+    }
+
+    const verify = await supabase
+      .from("receipts")
+      .select("id", { count: "exact", head: true })
+      .eq("id", receiptId);
+
+    if (verify.error) {
+      return { ok: false, message: verify.error.message };
+    }
+
+    if ((verify.count || 0) > 0) {
+      return { ok: false, message: "Beleg konnte nicht gelöscht werden. Bitte supabase_receipt_cleanup.sql ausführen." };
+    }
+
+    return { ok: true };
+  }
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      setAuthLoading(false);
+      return;
+    }
+
+    let active = true;
+
+    supabase.auth.getSession().then(({ data, error: sessionError }) => {
+      if (!active) return;
+      if (sessionError) {
+        setError(sessionError.message);
+        setAuthLoading(false);
+        return;
+      }
+
+      const nextSession = data.session || null;
+      setSession(nextSession);
+      setAuthLoading(false);
+
+      if (nextSession?.user) {
+        void loadUserAccess(nextSession.user);
+      } else {
+        setApprovalStatus("signed_out");
+        setAccessRecord(null);
+        setPendingUsers([]);
+      }
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setError("");
+      setSuccess("");
+
+      if (nextSession?.user) {
+        void loadUserAccess(nextSession.user);
+      } else {
+        setApprovalStatus("signed_out");
+        setAccessRecord(null);
+        setPendingUsers([]);
+      }
+    });
+
+    return () => {
+      active = false;
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
-    if (!hasSetup) return;
+    if (!canUseApp) return;
     loadReceipts();
     loadCostGroups();
-  }, [hasSetup]);
+    loadFamilyAccounts();
+  }, [canUseApp]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || session?.user) return;
+    if (typeof window === "undefined") return;
+    const rememberedEmail = window.localStorage.getItem(VERIFIED_EMAIL_STORAGE_KEY);
+    if (!rememberedEmail) return;
+
+    setAuthEmail((prev) => prev || rememberedEmail);
+    void verifyApprovedEmail(rememberedEmail, true);
+  }, [session]);
+
+  useEffect(() => {
+    if (!canUseApp) {
+      setItemAllocations([]);
+      return;
+    }
+
+    if (!receipts.length) {
+      setItemAllocations([]);
+      return;
+    }
+
+    const itemIds = receipts.flatMap((r) => (r.receipt_items || []).map((i) => i.id)).filter(Boolean);
+    if (!itemIds.length) {
+      setItemAllocations([]);
+      return;
+    }
+
+    loadItemAllocations(itemIds);
+  }, [receipts, canUseApp]);
+
+  useEffect(() => {
+    if (!canUseApp || !receipts.length || !receiptItemCurrencyColumnsReady) return;
+
+    const staleItems = receipts.flatMap((receipt) =>
+      (receipt.receipt_items || [])
+        .filter((item) => {
+          const currency = normalizeCurrencyCode(item.currency || "EUR");
+          if (currency === "EUR") return false;
+          if (repairedItemIds.current.has(item.id)) return false;
+
+          const originalAmount = roundMoney(item.original_amount ?? item.amount ?? 0);
+          const eurAmount = roundMoney(item.amount || 0);
+          const exchangeRate = Number(item.exchange_rate || 0);
+
+          return originalAmount > 0 && originalAmount === eurAmount && exchangeRate === 1;
+        })
+        .map((item) => ({ receiptId: receipt.id, item }))
+    );
+
+    if (!staleItems.length) return;
+
+    let cancelled = false;
+
+    const repair = async () => {
+      const touchedReceiptIds = new Set();
+
+      for (const entry of staleItems) {
+        const currency = normalizeCurrencyCode(entry.item.currency || "EUR");
+        const rate = await getExchangeRateToEur(currency);
+        if (!Number.isFinite(rate) || rate <= 0 || rate === 1) {
+          continue;
+        }
+
+        const originalAmount = roundMoney(entry.item.original_amount ?? entry.item.amount ?? 0);
+        const eurAmount = roundMoney(originalAmount * rate);
+        const updateResult = await supabase
+          .from("receipt_items")
+          .update({
+            original_amount: originalAmount,
+            amount: eurAmount,
+            currency,
+            exchange_rate: rate,
+          })
+          .eq("id", entry.item.id);
+
+        if (!updateResult.error) {
+          repairedItemIds.current.add(entry.item.id);
+          touchedReceiptIds.add(entry.receiptId);
+        }
+      }
+
+      for (const receiptId of touchedReceiptIds) {
+        await recalculateReceiptTotal(receiptId);
+      }
+
+      if (!cancelled && touchedReceiptIds.size) {
+        await loadReceipts();
+      }
+    };
+
+    void repair();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [receipts, canUseApp, receiptItemCurrencyColumnsReady]);
 
   function activeCostGroups() {
     return costGroups.length ? costGroups : defaultCostGroups;
   }
 
-  function saveEmailAccess() {
-    const value = String(emailInput || "").trim().toLowerCase();
+  async function sendMagicLink() {
+    if (!supabase) return;
+    const value = String(authEmail || "").trim().toLowerCase();
     if (!value || !value.includes("@")) {
       setError("Bitte eine gültige E-Mail-Adresse eingeben.");
       return;
     }
 
-    localStorage.setItem(ACCESS_EMAIL_KEY, value);
-    setAccessEmail(value);
+    setBusy(true);
+    const { error: authError } = await supabase.auth.signInWithOtp({
+      email: value,
+      options: {
+        emailRedirectTo: window.location.origin,
+      },
+    });
+    setBusy(false);
+
+    if (authError) {
+      setError(authError.message);
+      return;
+    }
+
+    const approved = await verifyApprovedEmail(value, true);
+
+    if (approved) {
+      setSuccess("Freigabe erkannt. Du kannst jetzt hier weiterarbeiten.");
+      return;
+    }
+
     setError("");
-    setSuccess("Zugang per E-Mail aktiviert.");
+    setSuccess("Anmelde-Link wurde per E-Mail gesendet.");
   }
 
-  function resetEmailAccess() {
-    localStorage.removeItem(ACCESS_EMAIL_KEY);
-    setAccessEmail("");
+  async function verifyApprovedEmail(value, silent = false) {
+    if (!supabase) return false;
+
+    const email = String(value || authEmail || "").trim().toLowerCase();
+    if (!email || !email.includes("@")) {
+      if (!silent) setError("Bitte eine gültige E-Mail-Adresse eingeben.");
+      return false;
+    }
+
+    if (!silent) {
+      setBusy(true);
+      setError("");
+      setSuccess("");
+    }
+
+    const { data, error: rpcError } = await supabase.rpc("check_email_approved", { p_email: email });
+
+    if (!silent) {
+      setBusy(false);
+    }
+
+    if (rpcError) {
+      if (!silent) setError(rpcError.message);
+      return false;
+    }
+
+    const approvalRow = Array.isArray(data) ? data[0] : data;
+
+    if (!approvalRow?.approved) {
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(VERIFIED_EMAIL_STORAGE_KEY);
+      }
+      if (!silent) setError("Diese E-Mail ist noch nicht freigegeben.");
+      return false;
+    }
+
+    setVerifiedEmail(email);
+    setApprovalStatus("approved_local");
+    setAccessRecord((prev) => ({
+      ...(prev || {}),
+      email,
+      status: "approved",
+      is_admin: Boolean(approvalRow?.is_admin),
+    }));
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(VERIFIED_EMAIL_STORAGE_KEY, email);
+    }
+
+    if (session?.user && approvalRow?.is_admin) {
+      await loadPendingUsers();
+    }
+
+    return true;
+  }
+
+  async function checkApprovedEmail() {
+    const approved = await verifyApprovedEmail(authEmail, false);
+    if (approved) {
+      setSuccess("Freigabe erkannt. Du kannst jetzt hier weiterarbeiten. In diesem Browser bleibt das bis zum Neuladen aktiv.");
+    }
+  }
+
+  async function signOut() {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setSession(null);
+    setAccessRecord(null);
+    setApprovalStatus("signed_out");
+    setVerifiedEmail("");
+    setPendingUsers([]);
     setSuccess("");
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(VERIFIED_EMAIL_STORAGE_KEY);
+    }
+  }
+
+  async function loadUserAccess(user) {
+    if (!supabase) return;
+    if (!user?.id) return;
+
+    setApprovalStatus("checking");
+
+    const { data, error: queryError } = await supabase
+      .from("user_access")
+      .select("user_id, email, status, is_admin, approved_at, created_at")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (queryError) {
+      setError(queryError.message);
+      setApprovalStatus("pending");
+      return;
+    }
+
+    let row = data;
+    if (!row) {
+      const { data: created, error: insertError } = await supabase
+        .from("user_access")
+        .insert({
+          user_id: user.id,
+          email: user.email || "",
+          status: "pending",
+        })
+        .select("user_id, email, status, is_admin, approved_at, created_at")
+        .single();
+
+      if (insertError) {
+        setError(insertError.message);
+        setApprovalStatus("pending");
+        return;
+      }
+
+      row = created;
+    }
+
+    setAccessRecord(row);
+    const nextStatus = row.status || "pending";
+    setApprovalStatus(nextStatus);
+
+    if (row.is_admin) {
+      await loadPendingUsers();
+    } else {
+      setPendingUsers([]);
+    }
+  }
+
+  async function loadPendingUsers() {
+    if (!supabase) return;
+    const { data, error: queryError } = await supabase
+      .from("user_access")
+      .select("user_id, email, status, created_at")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true });
+
+    if (queryError) {
+      setError(queryError.message);
+      return;
+    }
+
+    setPendingUsers(data || []);
+  }
+
+  async function approveUser(userId) {
+    if (!supabase) return;
+    const { error: updateError } = await supabase
+      .from("user_access")
+      .update({
+        status: "approved",
+        approved_at: new Date().toISOString(),
+      })
+      .eq("user_id", userId)
+      .eq("status", "pending");
+
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+
+    setSuccess("Benutzer wurde freigegeben.");
+    await loadPendingUsers();
+  }
+
+  async function bootstrapFirstAdmin() {
+    if (!supabase || !session?.user) return;
+
+    setBootstrapBusy(true);
+    setError("");
+    setSuccess("");
+
+    const { data, error: rpcError } = await supabase.rpc("bootstrap_first_admin");
+
+    if (rpcError) {
+      setBootstrapBusy(false);
+      setError(`${rpcError.message}. Bitte supabase_user_access.sql erneut in Supabase ausführen.`);
+      return;
+    }
+
+    setBootstrapBusy(false);
+
+    if (!data) {
+      setError("Bootstrap nicht möglich: Es existiert bereits ein freigegebener Admin.");
+      return;
+    }
+
+    setSuccess("Du bist jetzt als erster Admin freigeschaltet.");
+    await loadUserAccess(session.user);
   }
 
   async function loadReceipts() {
     setBusy(true);
     setError("");
 
-    const { data, error: queryError } = await supabase
+    const withCurrencyColumns = "id, merchant, receipt_date, total_amount, currency, image_path, ai_status, created_at, receipt_items(id, description, quantity, amount, original_amount, currency, exchange_rate, category)";
+    const withoutCurrencyColumns = "id, merchant, receipt_date, total_amount, currency, image_path, ai_status, created_at, receipt_items(id, description, quantity, amount, category)";
+
+    let response = await supabase
       .from("receipts")
-      .select("id, merchant, receipt_date, total_amount, currency, image_path, ai_status, created_at, receipt_items(id, description, quantity, amount, is_gift, category)")
+      .select(withCurrencyColumns)
       .eq("household_id", householdId)
       .order("receipt_date", { ascending: false })
       .order("created_at", { ascending: false });
+
+    if (response.error && String(response.error.message || "").includes("original_amount")) {
+      setReceiptItemCurrencyColumnsReady(false);
+      response = await supabase
+        .from("receipts")
+        .select(withoutCurrencyColumns)
+        .eq("household_id", householdId)
+        .order("receipt_date", { ascending: false })
+        .order("created_at", { ascending: false });
+    }
+
+    const { data, error: queryError } = response;
 
     setBusy(false);
 
     if (queryError) {
       setError(queryError.message);
       return;
+    }
+
+    if (!response.error) {
+      setReceiptItemCurrencyColumnsReady(true);
     }
 
     setReceipts(data || []);
@@ -255,11 +1182,118 @@ function App() {
     );
   }
 
+  async function loadFamilyAccounts() {
+    const { data, error: accountError } = await supabase
+      .from("family_accounts")
+      .select("id, name, color, account_type, sort_order")
+      .eq("household_id", householdId)
+      .order("account_type", { ascending: true })
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true });
+
+    if (accountError) {
+      setFamilyAccounts([]);
+      setAccountCatalogReady(false);
+      setAccountCatalogMessage(accountError.message || "Personenkonten-Tabelle ist noch nicht eingerichtet.");
+      return;
+    }
+
+    setAccountCatalogReady(true);
+    setAccountCatalogMessage("");
+    const next = data || [];
+    setFamilyAccounts(next);
+    setAccountDrafts(
+      next.reduce((acc, account) => {
+        acc[account.id] = {
+          name: account.name || "",
+          color: account.color || "#18b6a3",
+          accountType: account.account_type || "person",
+          sortOrder: Number(account.sort_order || 100),
+        };
+        return acc;
+      }, {})
+    );
+  }
+
+  async function loadItemAllocations(itemIds) {
+    if (!itemIds?.length) {
+      setItemAllocations([]);
+      return;
+    }
+
+    const { data, error: allocError } = await supabase
+      .from("receipt_item_allocations")
+      .select("receipt_item_id, account_id, amount")
+      .in("receipt_item_id", itemIds);
+
+    if (allocError) {
+      setItemAllocations([]);
+      return;
+    }
+
+    setItemAllocations(data || []);
+  }
+
+  async function setSingleItemAllocation(itemId, accountId, amount) {
+    const { error: deleteError } = await supabase
+      .from("receipt_item_allocations")
+      .delete()
+      .eq("receipt_item_id", itemId);
+
+    if (deleteError) {
+      setError(deleteError.message);
+      return false;
+    }
+
+    const parsedAmount = Number(Number(amount || 0).toFixed(2));
+    if (!accountId || accountId === defaultFamilyAccount.id || parsedAmount <= 0) {
+      setItemAllocations((prev) => prev.filter((x) => x.receipt_item_id !== itemId));
+      return true;
+    }
+
+    const { data, error: insertError } = await supabase
+      .from("receipt_item_allocations")
+      .insert({
+        receipt_item_id: itemId,
+        account_id: accountId,
+        amount: parsedAmount,
+      })
+      .select("receipt_item_id, account_id, amount");
+
+    if (insertError) {
+      setError(insertError.message);
+      return false;
+    }
+
+    setItemAllocations((prev) => {
+      const filtered = prev.filter((x) => x.receipt_item_id !== itemId);
+      return [...filtered, ...(data || [])];
+    });
+
+    return true;
+  }
+
+  async function assignItemToAccount(item, accountId) {
+    const ok = await setSingleItemAllocation(item.id, accountId, Number(item.amount || 0));
+    if (!ok) return;
+    setSuccess("Personenkonto aktualisiert.");
+  }
+
   function updateCostGroupDraft(groupId, key, value) {
     setCostGroupDrafts((prev) => ({
       ...prev,
       [groupId]: {
         ...(prev[groupId] || {}),
+        [key]: value,
+      },
+    }));
+  }
+
+  function updateAccountDraft(accountId, key, value) {
+    setAccountDrafts((prev) => ({
+      ...prev,
+      [accountId]: {
+        ...(prev[accountId] || {}),
         [key]: value,
       },
     }));
@@ -356,8 +1390,102 @@ function App() {
     await loadReceipts();
   }
 
+  async function saveFamilyAccount(accountId) {
+    const draft = accountDrafts[accountId];
+    if (!draft?.name?.trim()) {
+      setError("Personenkonto braucht einen Namen.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+
+    const { error: updateError } = await supabase
+      .from("family_accounts")
+      .update({
+        name: draft.name.trim(),
+        color: draft.color || "#18b6a3",
+        account_type: draft.accountType || "person",
+        sort_order: Number(draft.sortOrder || 100),
+      })
+      .eq("id", accountId)
+      .eq("household_id", householdId);
+
+    setBusy(false);
+
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+
+    setSuccess("Personenkonto gespeichert.");
+    await loadFamilyAccounts();
+  }
+
+  async function deleteFamilyAccount(account) {
+    if (!account?.id) return;
+    if (account.account_type === "family") {
+      setError("Das Familienkonto kann nicht gelöscht werden.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+
+    const { error: deleteError } = await supabase
+      .from("family_accounts")
+      .delete()
+      .eq("id", account.id)
+      .eq("household_id", householdId);
+
+    setBusy(false);
+
+    if (deleteError) {
+      setError(deleteError.message);
+      return;
+    }
+
+    setSuccess("Personenkonto gelöscht.");
+    await loadFamilyAccounts();
+    await loadItemAllocations(receipts.flatMap((r) => (r.receipt_items || []).map((i) => i.id)).filter(Boolean));
+  }
+
+  async function addFamilyAccount() {
+    if (!newAccount.name.trim()) {
+      setError("Bitte Name für das neue Personenkonto eingeben.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+
+    const { error: insertError } = await supabase.from("family_accounts").insert({
+      household_id: householdId,
+      name: newAccount.name.trim(),
+      color: newAccount.color || "#18b6a3",
+      account_type: newAccount.accountType || "person",
+      sort_order: Number(newAccount.sortOrder || 100),
+    });
+
+    setBusy(false);
+
+    if (insertError) {
+      setError(insertError.message);
+      return;
+    }
+
+    setNewAccount({
+      name: "",
+      color: "#18b6a3",
+      accountType: "person",
+      sortOrder: 100,
+    });
+    setSuccess("Personenkonto hinzugefügt.");
+    await loadFamilyAccounts();
+  }
+
   async function analyzeReceipt(receiptId, imagePath, options = {}) {
-    const { replaceItems = false } = options;
+    const { replaceItems = false, defaultAccountId = defaultFamilyAccount.id } = options;
 
     const aiResult = await supabase.functions.invoke("bonbon-extract-receipt", {
       body: { imagePath },
@@ -373,18 +1501,41 @@ function App() {
     }
 
     const parsed = aiResult.data || {};
+    const rawCurrency = normalizeCurrencyCode(parsed.currency || "EUR");
+    const exchangeRate = await getExchangeRateToEur(rawCurrency);
     const items = Array.isArray(parsed.items) ? parsed.items : [];
-    const groups = activeCostGroups();
+    const convertedItems = items.map((item) => {
+      const originalAmount = roundMoney(item.amount || 0);
+      const eurAmount = roundMoney(originalAmount * exchangeRate);
 
+      return {
+        description: String(item.description || ""),
+        quantity: Number(item.quantity || 1),
+        original_amount: originalAmount,
+        amount: eurAmount,
+        currency: rawCurrency,
+        exchange_rate: exchangeRate,
+        category: inferCostGroupName(item.description, activeCostGroups()),
+      };
+    });
+
+    const originalTotalAmount = roundMoney(parsed.totalAmount || 0);
+    const convertedTotalAmount = roundMoney(originalTotalAmount * exchangeRate);
     const receiptUpdate = await supabase
       .from("receipts")
       .update({
         merchant: parsed.merchant || "Unbekannt",
         receipt_date: parsed.receiptDate || new Date().toISOString().slice(0, 10),
-        total_amount: Number(parsed.totalAmount || 0),
-        currency: parsed.currency || "EUR",
+        total_amount: convertedTotalAmount,
+        currency: rawCurrency,
         ai_status: "done",
-        ai_raw_json: parsed,
+        ai_raw_json: {
+          ...parsed,
+          currency: rawCurrency,
+          originalTotalAmount,
+          exchangeRate,
+          totalAmountEur: convertedTotalAmount,
+        },
       })
       .eq("id", receiptId);
 
@@ -393,30 +1544,60 @@ function App() {
     }
 
     if (replaceItems) {
-      const { error: deleteError } = await supabase
-        .from("receipt_items")
-        .delete()
-        .eq("receipt_id", receiptId);
-
-      if (deleteError) {
-        return { ok: false, message: deleteError.message };
+      const clearResult = await clearReceiptItems(receiptId);
+      if (!clearResult.ok) {
+        return { ok: false, message: clearResult.message };
       }
     }
 
     if (items.length) {
-      const rows = items.map((item, index) => ({
+      const rows = convertedItems.map((item, index) => buildReceiptItemPayload({
         receipt_id: receiptId,
         position: index + 1,
         description: String(item.description || `Position ${index + 1}`),
         quantity: Number(item.quantity || 1),
+        original_amount: Number(item.original_amount || 0),
         amount: Number(item.amount || 0),
-        category: inferCostGroupName(item.description, groups),
-        is_gift: false,
-      }));
+        currency: item.currency || rawCurrency,
+        exchange_rate: Number(item.exchange_rate || 1),
+        category: item.category,
+      }, receiptItemCurrencyColumnsReady));
 
-      const insertItems = await supabase.from("receipt_items").insert(rows);
+      let insertItems = await supabase.from("receipt_items").insert(rows).select("id, amount");
+
+      if (insertItems.error && String(insertItems.error.message || "").includes("original_amount")) {
+        setReceiptItemCurrencyColumnsReady(false);
+        const fallbackRows = convertedItems.map((item, index) => buildReceiptItemPayload({
+          receipt_id: receiptId,
+          position: index + 1,
+          description: String(item.description || `Position ${index + 1}`),
+          quantity: Number(item.quantity || 1),
+          amount: Number(item.amount || 0),
+          category: item.category,
+        }, false));
+        insertItems = await supabase.from("receipt_items").insert(fallbackRows).select("id, amount");
+      }
+
       if (insertItems.error) {
         return { ok: false, message: insertItems.error.message };
+      }
+
+      if (defaultAccountId && defaultAccountId !== defaultFamilyAccount.id) {
+        const allocationRows = (insertItems.data || [])
+          .map((row) => ({
+            receipt_item_id: row.id,
+            account_id: defaultAccountId,
+            amount: Number(row.amount || 0),
+          }));
+
+        if (allocationRows.length) {
+          const { error: allocationError } = await supabase.from("receipt_item_allocations").insert(allocationRows);
+          if (allocationError) {
+            return { ok: false, message: allocationError.message };
+          }
+
+          await loadItemAllocations((insertItems.data || []).map((row) => row.id));
+        }
       }
     }
 
@@ -424,7 +1605,7 @@ function App() {
   }
 
   async function uploadAndExtract() {
-    if (!selectedFile || !hasSetup) return;
+    if (!selectedFile || !canUseApp) return;
     setBusy(true);
     setError("");
     setSuccess("");
@@ -464,7 +1645,7 @@ function App() {
 
     const receiptId = initialReceipt.data.id;
 
-    const result = await analyzeReceipt(receiptId, storagePath);
+    const result = await analyzeReceipt(receiptId, storagePath, { defaultAccountId: newReceiptAccountId });
     if (!result.ok) {
       setBusy(false);
       setError(result.message);
@@ -480,7 +1661,7 @@ function App() {
   }
 
   async function retryAnalysis(receipt) {
-    if (!receipt?.id || !receipt?.image_path || !hasSetup) return;
+    if (!receipt?.id || !receipt?.image_path || !canUseApp) return;
 
     setBusy(true);
     setError("");
@@ -514,31 +1695,76 @@ function App() {
     setSelectedReceipt(receipt.id);
   }
 
+  async function deleteReceipt(receipt) {
+    if (!receipt?.id) return;
+    if (!window.confirm("Diesen Beleg wirklich löschen? Alle Positionen und Zuordnungen werden entfernt.")) {
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setSuccess("");
+
+    const result = await deleteReceiptById(receipt.id);
+    setBusy(false);
+
+    if (!result.ok) {
+      setError(result.message);
+      return;
+    }
+
+    setSuccess("Beleg wurde gelöscht.");
+    setSelectedReceipt((prev) => (prev === receipt.id ? null : prev));
+    await loadReceipts();
+  }
+
   async function addManualItem() {
     if (!selectedReceipt) return;
 
     const groups = activeCostGroups();
+    const currency = normalizeCurrencyCode(manualDraft.currency || "EUR");
+    const exchangeRate = await getExchangeRateToEur(currency);
+    const originalAmount = roundMoney(manualDraft.amount || 0);
+    const amount = roundMoney(originalAmount * exchangeRate);
 
     const row = {
       receipt_id: selectedReceipt,
       description: manualDraft.description || "Neue Position",
       quantity: Number(manualDraft.quantity || 1),
-      amount: Number(manualDraft.amount || 0),
-      category: inferCostGroupName(manualDraft.description, groups),
-      is_gift: Boolean(manualDraft.is_gift),
+      original_amount: originalAmount,
+      amount,
+      currency,
+      exchange_rate: exchangeRate,
+      category: manualDraft.category || inferCostGroupName(manualDraft.description, groups),
     };
 
-    const { error: insertError } = await supabase.from("receipt_items").insert(row);
+    let insertError;
+    let insertResponse = await supabase.from("receipt_items").insert(buildReceiptItemPayload(row, receiptItemCurrencyColumnsReady));
+
+    if (insertResponse.error && String(insertResponse.error.message || "").includes("original_amount")) {
+      setReceiptItemCurrencyColumnsReady(false);
+      insertResponse = await supabase.from("receipt_items").insert(buildReceiptItemPayload({
+        receipt_id: selectedReceipt,
+        description: manualDraft.description || "Neue Position",
+        quantity: Number(manualDraft.quantity || 1),
+        amount,
+        category: manualDraft.category || inferCostGroupName(manualDraft.description, groups),
+      }, false));
+    }
+
+    insertError = insertResponse.error;
     if (insertError) {
       setError(insertError.message);
       return;
     }
 
     setManualDraft(emptyDraft);
+    await recalculateReceiptTotal(selectedReceipt);
     await loadReceipts();
   }
 
   async function patchItem(itemId, patch) {
+    const receiptId = receipts.find((receipt) => (receipt.receipt_items || []).some((item) => item.id === itemId))?.id;
     const { error: updateError } = await supabase
       .from("receipt_items")
       .update(patch)
@@ -549,7 +1775,130 @@ function App() {
       return;
     }
 
+    if (receiptId) {
+      await recalculateReceiptTotal(receiptId);
+    }
+
     await loadReceipts();
+  }
+
+  async function updateItemCurrency(item, currency) {
+    const nextCurrency = normalizeCurrencyCode(currency || "EUR");
+    const originalAmount = getItemOriginalAmount(item);
+    const exchangeRate = nextCurrency === "EUR" ? 1 : await getExchangeRateToEur(nextCurrency);
+    const eurAmount = roundMoney(originalAmount * exchangeRate);
+
+    const nextPayload = receiptItemCurrencyColumnsReady
+      ? {
+          currency: nextCurrency,
+          exchange_rate: exchangeRate,
+          original_amount: originalAmount,
+          amount: eurAmount,
+        }
+      : {
+          amount: eurAmount,
+        };
+
+    let updateResponse = await supabase
+      .from("receipt_items")
+      .update(nextPayload)
+      .eq("id", item.id);
+
+    if (updateResponse.error && String(updateResponse.error.message || "").includes("original_amount")) {
+      setReceiptItemCurrencyColumnsReady(false);
+      updateResponse = await supabase
+        .from("receipt_items")
+        .update({ amount: eurAmount })
+        .eq("id", item.id);
+    }
+
+    if (updateResponse.error) {
+      setError(updateResponse.error.message);
+      return;
+    }
+
+    const currentAlloc = primaryAccountByItemId.get(item.id);
+    if (currentAlloc?.accountId) {
+      await setSingleItemAllocation(item.id, currentAlloc.accountId, eurAmount);
+    }
+
+    const receiptId = receipts.find((receipt) => (receipt.receipt_items || []).some((row) => row.id === item.id))?.id;
+    if (receiptId) {
+      await recalculateReceiptTotal(receiptId);
+    }
+
+    await loadReceipts();
+  }
+
+  function updateAmountDraft(itemId, value) {
+    setAmountDrafts((prev) => ({
+      ...prev,
+      [itemId]: value,
+    }));
+  }
+
+  async function commitAmountDraft(item) {
+    if (!Object.prototype.hasOwnProperty.call(amountDrafts, item.id)) return;
+
+    const rawValue = amountDrafts[item.id];
+    const parsed = parseAmountDE(rawValue);
+
+    if (parsed === null) {
+      setError("Bitte einen gültigen Betrag eingeben, z. B. 1.234,56.");
+      return;
+    }
+
+    const currency = normalizeCurrencyCode(item.currency || "EUR");
+    const exchangeRate = currency === "EUR" ? 1 : getItemExchangeRate(item) || (await getExchangeRateToEur(currency));
+    const originalAmount = roundMoney(parsed);
+    const eurAmount = roundMoney(originalAmount * exchangeRate);
+
+    if (originalAmount !== getItemOriginalAmount(item) || eurAmount !== Number(item.amount || 0)) {
+      const nextPayload = receiptItemCurrencyColumnsReady
+        ? {
+            original_amount: originalAmount,
+            amount: eurAmount,
+            currency,
+            exchange_rate: exchangeRate,
+          }
+        : { amount: eurAmount };
+
+      let updateResponse = await supabase
+        .from("receipt_items")
+        .update(nextPayload)
+        .eq("id", item.id);
+
+      if (updateResponse.error && String(updateResponse.error.message || "").includes("original_amount")) {
+        setReceiptItemCurrencyColumnsReady(false);
+        updateResponse = await supabase
+          .from("receipt_items")
+          .update({ amount: eurAmount })
+          .eq("id", item.id);
+      }
+
+      if (updateResponse.error) {
+        setError(updateResponse.error.message);
+        return;
+      }
+
+      const currentAlloc = primaryAccountByItemId.get(item.id);
+      if (currentAlloc?.accountId) {
+        await setSingleItemAllocation(item.id, currentAlloc.accountId, eurAmount);
+      }
+
+      const receiptId = receipts.find((receipt) => (receipt.receipt_items || []).some((row) => row.id === item.id))?.id;
+      if (receiptId) {
+        await recalculateReceiptTotal(receiptId);
+      }
+
+      await loadReceipts();
+    }
+
+    setAmountDrafts((prev) => {
+      const next = { ...prev };
+      delete next[item.id];
+      return next;
+    });
   }
 
   async function autoAssignCategories(receipt) {
@@ -603,29 +1952,96 @@ function App() {
 
   const currentReceipt = receipts.find((r) => r.id === selectedReceipt) || null;
 
-  if (!accessEmail) {
+  if (authLoading) {
     return (
       <div className="page">
         <header className="hero">
           <img src="/bonbon-logo.svg" alt="BonBox" className="hero-logo" />
           <div>
             <h1>BonBox</h1>
-            <p>Bitte mit E-Mail anmelden, um dein Haushaltsbuch zu öffnen.</p>
+            <p>Anmeldung wird geladen...</p>
+          </div>
+          <span className="version-badge">{APP_VERSION}</span>
+        </header>
+      </div>
+    );
+  }
+
+  if (!session?.user && !isEmailVerified) {
+    return (
+      <div className="page">
+        <header className="hero">
+          <img src="/bonbon-logo.svg" alt="BonBox" className="hero-logo" />
+          <div>
+            <h1>BonBox</h1>
+            <p>Bitte anmelden, um dein Haushaltsbuch zu öffnen.</p>
           </div>
           <span className="version-badge">{APP_VERSION}</span>
         </header>
 
         <section className="panel setup-panel">
-          <h2>Zugang mit E-Mail</h2>
-          <p className="hint">Diese E-Mail wird lokal auf diesem Gerät gespeichert.</p>
+          <h2>Login per E-Mail-Link</h2>
+          <p className="hint">Du erhältst einen sicheren Anmelde-Link per E-Mail.</p>
           <input
             type="email"
             placeholder="name@beispiel.de"
-            value={emailInput}
-            onChange={(e) => setEmailInput(e.target.value)}
+            value={authEmail}
+            onChange={(e) => setAuthEmail(e.target.value)}
           />
-          <button className="btn" onClick={saveEmailAccess}>Weiter</button>
+          <div className="receipt-actions">
+            <button className="btn" disabled={busy || !hasSetup} onClick={sendMagicLink}>
+              {busy ? "Sende..." : "Anmelde-Link senden"}
+            </button>
+            <button className="btn secondary" disabled={busy || !hasSetup} onClick={checkApprovedEmail}>
+              {busy ? "Prüfe..." : "Freigegebene E-Mail prüfen"}
+            </button>
+          </div>
+          {!hasSetup && (
+            <p className="hint error">
+              Bitte zuerst .env mit Supabase-Werten konfigurieren.
+            </p>
+          )}
+          <p className="hint">
+            Wenn der Magic Link im anderen Browser aufgeht, prüfe die freigegebene E-Mail hier in diesem Fenster noch einmal.
+          </p>
+          {success && <p className="hint success">{success}</p>}
           {error && <p className="hint error">{error}</p>}
+        </section>
+      </div>
+    );
+  }
+
+  if (session?.user && !isApproved) {
+    return (
+      <div className="page">
+        <header className="hero">
+          <img src="/bonbon-logo.svg" alt="BonBox" className="hero-logo" />
+          <div>
+            <h1>BonBox</h1>
+            <p>Dein Konto wird geprüft.</p>
+          </div>
+          <span className="version-badge">{APP_VERSION}</span>
+        </header>
+
+        <section className="panel setup-panel">
+          <h2>Freigabe ausstehend</h2>
+          <p className="hint">
+            Angemeldet als: <strong>{session.user.email}</strong>
+          </p>
+          <p className="hint">
+            Ein Admin muss deinen Zugang einmal freischalten. Danach kannst du die App normal nutzen.
+          </p>
+          <div className="receipt-actions">
+            <button className="btn secondary" onClick={() => loadUserAccess(session.user)}>
+              Status aktualisieren
+            </button>
+            <button className="btn" disabled={bootstrapBusy} onClick={bootstrapFirstAdmin}>
+              {bootstrapBusy ? "Prüfe..." : "Als ersten Admin freischalten"}
+            </button>
+            <button className="btn secondary" onClick={signOut}>Abmelden</button>
+          </div>
+          {error && <p className="hint error">{error}</p>}
+          {success && <p className="hint success">{success}</p>}
         </section>
       </div>
     );
@@ -640,9 +2056,11 @@ function App() {
           <p>Belege scannen, KI auswerten, Haushaltsbuch automatisch pflegen.</p>
         </div>
         <div className="top-right-badges">
-          <span className="email-badge">{accessEmail}</span>
+          <span className="email-badge">{displayEmail}</span>
+          {isEmailVerified && <span className="email-badge">E-Mail geprüft</span>}
+          {isAdmin && <span className="email-badge">Admin</span>}
           <span className="version-badge">{APP_VERSION}</span>
-          <button className="btn secondary mini-btn" onClick={resetEmailAccess}>E-Mail wechseln</button>
+          <button className="btn secondary mini-btn" onClick={signOut}>Abmelden</button>
         </div>
       </header>
 
@@ -656,9 +2074,49 @@ function App() {
         </section>
       )}
 
-      <section className="grid two">
+      {isAdmin && (
+        <section className="panel setup-panel">
+          <h2>Benutzerfreigaben</h2>
+          <p className="hint">Neue Benutzer erscheinen hier automatisch nach ihrem ersten Login per E-Mail-Link und können dann freigegeben werden.</p>
+          {!pendingUsers.length && <p className="hint">Keine offenen Freigaben.</p>}
+          {!!pendingUsers.length && (
+            <div className="receipt-list">
+              {pendingUsers.map((entry) => (
+                <div className="receipt-button" key={entry.user_id}>
+                  <div>
+                    <strong>{entry.email || entry.user_id}</strong>
+                    <small>{formatReceiptDateTime({ created_at: entry.created_at })}</small>
+                  </div>
+                  <button className="btn secondary mini-btn" onClick={() => approveUser(entry.user_id)}>
+                    Freigeben
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      <section className="workflow-stack">
         <article className="panel">
-          <h2>Neuen Beleg erfassen</h2>
+          <h2>1. Personenkonto auswählen</h2>
+          <p className="hint">Dieses Konto wird neuen Positionen beim Erfassen automatisch zugewiesen.</p>
+          <div className="upload-account-row">
+            <label>Personenkonto für neue Positionen</label>
+            <select
+              value={newReceiptAccountId}
+              onChange={(e) => setNewReceiptAccountId(e.target.value)}
+              style={buildColorInputStyle(selectedUploadAccount?.color)}
+            >
+              {accountOptions.map((account) => (
+                <option key={account.id} value={account.id}>{account.name}</option>
+              ))}
+            </select>
+          </div>
+        </article>
+
+        <article className="panel">
+          <h2>2. Neuen Beleg erfassen</h2>
           <p className="hint">Foto oder Scan auswählen und von der KI auslesen lassen.</p>
           <div className="file-picker">
             <div className="file-options">
@@ -713,134 +2171,338 @@ function App() {
             {busy ? "Analysiere..." : "Beleg per KI auswerten"}
           </button>
         </article>
-
-        <article
-          className="panel overview-panel"
-          role="button"
-          tabIndex={0}
-          onClick={() => setShowCostGroupModal(true)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              setShowCostGroupModal(true);
-            }
-          }}
-        >
-          <h2>Kostenübersicht</h2>
-          <div className="totals">
-            <div className="total-card main">
-              <span>Haushaltsbuch</span>
-              <strong>{euro.format(mainAccountTotal)}</strong>
-            </div>
-            <div className="total-card gift">
-              <span>Geschenke</span>
-              <strong>{euro.format(giftAccountTotal)}</strong>
-            </div>
-          </div>
-
-          <div className="cost-group-summary">
-            <h3>Kostenübersicht nach Kostengruppen</h3>
-            {!costGroupTotals.length && <p className="hint">Noch keine Positionen mit Kosten vorhanden.</p>}
-            {!!costGroupTotals.length && (
-              <div className="cost-group-summary-list">
-                {costGroupTotals.map((row) => (
-                  <div className="cost-group-summary-row" key={row.name}>
-                    <span className="cost-group-name">
-                      <span className="cost-group-dot" style={{ backgroundColor: row.color }} />
-                      {row.name}
-                    </span>
-                    <strong>{euro.format(row.total)}</strong>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="cost-group-summary-actions">
-            <p className="hint">Tippe in diese Karte, um den Kostengruppen-Katalog zu öffnen.</p>
-          </div>
-        </article>
       </section>
 
       {showCostGroupModal && (
         <div className="modal-backdrop" onClick={() => setShowCostGroupModal(false)}>
           <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Kostengruppen-Katalog</h3>
+              <h3>
+                {costGroupModalView === "summary" && "Kostenübersicht"}
+                {costGroupModalView === "groupDetails" && "Detaillierte Übersicht nach Kostengruppen"}
+                {costGroupModalView === "accountDetails" && "Detaillierte Übersicht nach Personenkonten"}
+                {costGroupModalView === "edit" && "Kostengruppen bearbeiten"}
+                {costGroupModalView === "accounts" && "Personenkonten bearbeiten"}
+              </h3>
               <button className="btn secondary" onClick={() => setShowCostGroupModal(false)}>Schließen</button>
             </div>
 
-            {!costGroupCatalogReady && (
-              <p className="hint error">
-                Katalog-Tabelle noch nicht verfügbar: {costGroupCatalogMessage}
-              </p>
-            )}
-
-            {costGroupCatalogReady && !costGroups.length && (
-              <p className="hint">Noch keine Kostengruppen angelegt. Füge unten eine hinzu.</p>
-            )}
-
-            {costGroupCatalogReady && costGroups.map((group) => {
-              const draft = costGroupDrafts[group.id] || {
-                name: group.name || "",
-                color: group.color || "#18b6a3",
-                keywordsText: keywordsToText(group.keywords),
-                sortOrder: Number(group.sort_order || 100),
-              };
-
-              return (
-                <div className="cost-group-edit-row" key={group.id}>
-                  <input
-                    value={draft.name}
-                    onChange={(e) => updateCostGroupDraft(group.id, "name", e.target.value)}
-                    placeholder="Name"
-                  />
-                  <input
-                    value={draft.color}
-                    onChange={(e) => updateCostGroupDraft(group.id, "color", e.target.value)}
-                    placeholder="#18b6a3"
-                  />
-                  <input
-                    value={draft.keywordsText}
-                    onChange={(e) => updateCostGroupDraft(group.id, "keywordsText", e.target.value)}
-                    placeholder="Keywords, kommasepariert"
-                  />
-                  <input
-                    type="number"
-                    value={draft.sortOrder}
-                    onChange={(e) => updateCostGroupDraft(group.id, "sortOrder", e.target.value)}
-                    placeholder="Sortierung"
-                  />
-                  <button className="btn secondary" disabled={busy} onClick={() => saveCostGroup(group.id)}>Speichern</button>
-                  <button className="btn secondary" disabled={busy} onClick={() => deleteCostGroup(group.id)}>Löschen</button>
+            {costGroupModalView === "summary" && (
+              <>
+                <div className="cost-group-summary clickable-summary" role="button" tabIndex={0} onClick={() => setCostGroupModalView("groupDetails")} onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setCostGroupModalView("groupDetails");
+                  }
+                }}>
+                  <h3>Kostenübersicht nach Kostengruppen</h3>
+                  {!costGroupTotals.length && <p className="hint">Noch keine Positionen mit Kosten vorhanden.</p>}
+                  {!!costGroupTotals.length && (
+                    <div className="cost-group-summary-list">
+                      {costGroupTotals.map((row) => (
+                        <div className="cost-group-summary-row" key={row.name} style={buildSummaryRowStyle(row.color)}>
+                          <span className="cost-group-name">
+                            <span className="cost-group-dot" style={{ backgroundColor: row.color }} />
+                            {row.name}
+                          </span>
+                          <strong>{euro.format(row.total)}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <p className="hint">Tippen für Detailansicht.</p>
                 </div>
-              );
-            })}
 
-            {costGroupCatalogReady && (
-              <div className="cost-group-new-row">
-                <input
-                  value={newCostGroup.name}
-                  onChange={(e) => setNewCostGroup((s) => ({ ...s, name: e.target.value }))}
-                  placeholder="Neue Kostengruppe"
-                />
-                <input
-                  value={newCostGroup.color}
-                  onChange={(e) => setNewCostGroup((s) => ({ ...s, color: e.target.value }))}
-                  placeholder="#18b6a3"
-                />
-                <input
-                  value={newCostGroup.keywordsText}
-                  onChange={(e) => setNewCostGroup((s) => ({ ...s, keywordsText: e.target.value }))}
-                  placeholder="Keywords, kommasepariert"
-                />
-                <input
-                  type="number"
-                  value={newCostGroup.sortOrder}
-                  onChange={(e) => setNewCostGroup((s) => ({ ...s, sortOrder: e.target.value }))}
-                  placeholder="Sortierung"
-                />
-                <button className="btn" disabled={busy} onClick={addCostGroup}>Hinzufügen</button>
-              </div>
+                <div className="cost-group-summary clickable-summary" role="button" tabIndex={0} onClick={() => setCostGroupModalView("accountDetails")} onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setCostGroupModalView("accountDetails");
+                  }
+                }}>
+                  <h3>Kostenübersicht nach Personenkonten</h3>
+                  {!accountTotals.length && <p className="hint">Noch keine Kosten vorhanden.</p>}
+                  {!!accountTotals.length && (
+                    <div className="cost-group-summary-list">
+                      {accountTotals.map((row) => (
+                        <div className="cost-group-summary-row" key={row.id} style={buildSummaryRowStyle(row.color)}>
+                          <span className="cost-group-name">
+                            <span className="cost-group-dot" style={{ backgroundColor: row.color }} />
+                            {row.name}
+                          </span>
+                          <strong>{euro.format(row.total)}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <p className="hint">Tippen für Detailansicht.</p>
+                </div>
+
+                <div className="cost-group-summary-actions">
+                  <button className="btn" onClick={() => setCostGroupModalView("edit")}>Kostengruppen bearbeiten</button>
+                  <button className="btn secondary" onClick={() => setCostGroupModalView("accounts")}>Personenkonten bearbeiten</button>
+                </div>
+              </>
+            )}
+
+            {costGroupModalView === "groupDetails" && (
+              <>
+                <div className="cost-group-summary-actions">
+                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>Zurück zur Übersicht</button>
+                </div>
+                <div className="detail-stats-grid">
+                  <div className="detail-stat-card"><span>Gesamt</span><strong>{euro.format(costGroupDetails.overall.total)}</strong></div>
+                  <div className="detail-stat-card"><span>Laufendes Jahr</span><strong>{euro.format(costGroupDetails.overall.yearTotal)}</strong></div>
+                  <div className="detail-stat-card"><span>Laufender Monat</span><strong>{euro.format(costGroupDetails.overall.monthTotal)}</strong></div>
+                  <div className="detail-stat-card"><span>Ø pro Monat</span><strong>{euro.format(costGroupDetails.overall.averagePerMonth)}</strong></div>
+                </div>
+                {!costGroupDetails.rows.length && <p className="hint">Noch keine Positionen mit Kosten vorhanden.</p>}
+                {!!costGroupDetails.rows.length && (
+                  <div className="detail-table">
+                    <div className="detail-table-head">
+                      <span>Name</span><span>Gesamt</span><span>Laufendes Jahr</span><span>Laufender Monat</span><span>Ø pro Monat</span>
+                    </div>
+                    {costGroupDetails.rows.map((row) => (
+                      <div className="detail-table-row" key={row.name}>
+                        <span className="cost-group-name detail-name"><span className="cost-group-dot" style={{ backgroundColor: row.color }} />{row.name}</span>
+                        <strong className="detail-metric" data-label="Gesamt">{euro.format(row.total)}</strong>
+                        <strong className="detail-metric" data-label="Laufendes Jahr">{euro.format(row.yearTotal)}</strong>
+                        <strong className="detail-metric" data-label="Laufender Monat">{euro.format(row.monthTotal)}</strong>
+                        <strong className="detail-metric" data-label="Ø pro Monat">{euro.format(row.averagePerMonth)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {costGroupModalView === "accountDetails" && (
+              <>
+                <div className="cost-group-summary-actions">
+                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>Zurück zur Übersicht</button>
+                </div>
+                <div className="detail-stats-grid">
+                  <div className="detail-stat-card"><span>Gesamt</span><strong>{euro.format(accountDetails.overall.total)}</strong></div>
+                  <div className="detail-stat-card"><span>Laufendes Jahr</span><strong>{euro.format(accountDetails.overall.yearTotal)}</strong></div>
+                  <div className="detail-stat-card"><span>Laufender Monat</span><strong>{euro.format(accountDetails.overall.monthTotal)}</strong></div>
+                  <div className="detail-stat-card"><span>Ø pro Monat</span><strong>{euro.format(accountDetails.overall.averagePerMonth)}</strong></div>
+                </div>
+                {!accountDetails.rows.length && <p className="hint">Noch keine Kosten vorhanden.</p>}
+                {!!accountDetails.rows.length && (
+                  <div className="detail-table">
+                    <div className="detail-table-head">
+                      <span>Name</span><span>Gesamt</span><span>Laufendes Jahr</span><span>Laufender Monat</span><span>Ø pro Monat</span>
+                    </div>
+                    {accountDetails.rows.map((row) => (
+                      <div className="detail-table-row" key={row.id}>
+                        <span className="cost-group-name detail-name"><span className="cost-group-dot" style={{ backgroundColor: row.color }} />{row.name}</span>
+                        <strong className="detail-metric" data-label="Gesamt">{euro.format(row.total)}</strong>
+                        <strong className="detail-metric" data-label="Laufendes Jahr">{euro.format(row.yearTotal)}</strong>
+                        <strong className="detail-metric" data-label="Laufender Monat">{euro.format(row.monthTotal)}</strong>
+                        <strong className="detail-metric" data-label="Ø pro Monat">{euro.format(row.averagePerMonth)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {costGroupModalView === "edit" && (
+              <>
+                <div className="cost-group-summary-actions">
+                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>Zurück zur Übersicht</button>
+                </div>
+
+                {!costGroupCatalogReady && (
+                  <p className="hint error">
+                    Katalog-Tabelle noch nicht verfügbar: {costGroupCatalogMessage}
+                  </p>
+                )}
+
+                {costGroupCatalogReady && !costGroups.length && (
+                  <p className="hint">Noch keine Kostengruppen angelegt. Füge unten eine hinzu.</p>
+                )}
+
+                {costGroupCatalogReady && (
+                  <div className="cost-group-edit-head">
+                    <span>Name</span>
+                    <span>Farbe</span>
+                    <span>Keywords</span>
+                    <span>Sortierung</span>
+                    <span>Aktion</span>
+                    <span>Aktion</span>
+                  </div>
+                )}
+
+                {costGroupCatalogReady && costGroups.map((group) => {
+                  const draft = costGroupDrafts[group.id] || {
+                    name: group.name || "",
+                    color: group.color || "#18b6a3",
+                    keywordsText: keywordsToText(group.keywords),
+                    sortOrder: Number(group.sort_order || 100),
+                  };
+
+                  return (
+                    <div className="cost-group-edit-row" key={group.id}>
+                      <input
+                        value={draft.name}
+                        onChange={(e) => updateCostGroupDraft(group.id, "name", e.target.value)}
+                        placeholder="Name"
+                      />
+                      <input
+                        value={draft.color}
+                        onChange={(e) => updateCostGroupDraft(group.id, "color", e.target.value)}
+                        style={buildColorInputStyle(draft.color)}
+                        placeholder="#18b6a3"
+                      />
+                      <input
+                        value={draft.keywordsText}
+                        onChange={(e) => updateCostGroupDraft(group.id, "keywordsText", e.target.value)}
+                        placeholder="Keywords, kommasepariert"
+                      />
+                      <input
+                        type="number"
+                        value={draft.sortOrder}
+                        onChange={(e) => updateCostGroupDraft(group.id, "sortOrder", e.target.value)}
+                        placeholder="Sortierung"
+                      />
+                      <button className="btn secondary" disabled={busy} onClick={() => saveCostGroup(group.id)}>Speichern</button>
+                      <button className="btn secondary" disabled={busy} onClick={() => deleteCostGroup(group.id)}>Löschen</button>
+                    </div>
+                  );
+                })}
+
+                {costGroupCatalogReady && (
+                  <div className="cost-group-new-row">
+                    <input
+                      value={newCostGroup.name}
+                      onChange={(e) => setNewCostGroup((s) => ({ ...s, name: e.target.value }))}
+                      placeholder="Neue Kostengruppe"
+                    />
+                    <input
+                      value={newCostGroup.color}
+                      onChange={(e) => setNewCostGroup((s) => ({ ...s, color: e.target.value }))}
+                      style={buildColorInputStyle(newCostGroup.color)}
+                      placeholder="#18b6a3"
+                    />
+                    <input
+                      value={newCostGroup.keywordsText}
+                      onChange={(e) => setNewCostGroup((s) => ({ ...s, keywordsText: e.target.value }))}
+                      placeholder="Keywords, kommasepariert"
+                    />
+                    <input
+                      type="number"
+                      value={newCostGroup.sortOrder}
+                      onChange={(e) => setNewCostGroup((s) => ({ ...s, sortOrder: e.target.value }))}
+                      placeholder="Sortierung"
+                    />
+                    <button className="btn" disabled={busy} onClick={addCostGroup}>Hinzufügen</button>
+                    <span className="table-action-placeholder" aria-hidden="true" />
+                  </div>
+                )}
+              </>
+            )}
+
+            {costGroupModalView === "accounts" && (
+              <>
+                <div className="cost-group-summary-actions">
+                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>Zurück zur Übersicht</button>
+                </div>
+
+                {!accountCatalogReady && (
+                  <p className="hint error">
+                    Personenkonten-Tabelle noch nicht verfügbar: {accountCatalogMessage}
+                  </p>
+                )}
+
+                {accountCatalogReady && !familyAccounts.length && (
+                  <p className="hint">Noch keine Personenkonten angelegt. Füge unten eines hinzu.</p>
+                )}
+
+                {accountCatalogReady && (
+                  <div className="account-edit-head">
+                    <span>Name</span>
+                    <span>Farbe</span>
+                    <span>Typ</span>
+                    <span>Sortierung</span>
+                    <span>Aktion</span>
+                    <span>Aktion</span>
+                  </div>
+                )}
+
+                {accountCatalogReady && familyAccounts.map((account) => {
+                  const draft = accountDrafts[account.id] || {
+                    name: account.name || "",
+                    color: account.color || "#18b6a3",
+                    accountType: account.account_type || "person",
+                    sortOrder: Number(account.sort_order || 100),
+                  };
+
+                  return (
+                    <div className="account-edit-row" key={account.id}>
+                      <input
+                        value={draft.name}
+                        onChange={(e) => updateAccountDraft(account.id, "name", e.target.value)}
+                        placeholder="Name"
+                      />
+                      <input
+                        value={draft.color}
+                        onChange={(e) => updateAccountDraft(account.id, "color", e.target.value)}
+                        style={buildColorInputStyle(draft.color)}
+                        placeholder="#18b6a3"
+                      />
+                      <select
+                        value={draft.accountType}
+                        onChange={(e) => updateAccountDraft(account.id, "accountType", e.target.value)}
+                        disabled={account.account_type === "family"}
+                      >
+                        <option value="person">Person</option>
+                        <option value="family">Familie</option>
+                      </select>
+                      <input
+                        type="number"
+                        value={draft.sortOrder}
+                        onChange={(e) => updateAccountDraft(account.id, "sortOrder", e.target.value)}
+                        placeholder="Sortierung"
+                      />
+                      <button className="btn secondary" disabled={busy} onClick={() => saveFamilyAccount(account.id)}>Speichern</button>
+                      <button className="btn secondary" disabled={busy || account.account_type === "family"} onClick={() => deleteFamilyAccount(account)}>
+                        Löschen
+                      </button>
+                    </div>
+                  );
+                })}
+
+                {accountCatalogReady && (
+                  <div className="account-new-row">
+                    <input
+                      value={newAccount.name}
+                      onChange={(e) => setNewAccount((s) => ({ ...s, name: e.target.value }))}
+                      placeholder="Neues Personenkonto"
+                    />
+                    <input
+                      value={newAccount.color}
+                      onChange={(e) => setNewAccount((s) => ({ ...s, color: e.target.value }))}
+                      style={buildColorInputStyle(newAccount.color)}
+                      placeholder="#18b6a3"
+                    />
+                    <select
+                      value={newAccount.accountType}
+                      onChange={(e) => setNewAccount((s) => ({ ...s, accountType: e.target.value }))}
+                    >
+                      <option value="person">Person</option>
+                      <option value="family">Familie</option>
+                    </select>
+                    <input
+                      type="number"
+                      value={newAccount.sortOrder}
+                      onChange={(e) => setNewAccount((s) => ({ ...s, sortOrder: e.target.value }))}
+                      placeholder="Sortierung"
+                    />
+                    <button className="btn" disabled={busy} onClick={addFamilyAccount}>Hinzufügen</button>
+                    <span className="table-action-placeholder" aria-hidden="true" />
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -849,9 +2511,9 @@ function App() {
       {error && <p className="hint error">{error}</p>}
       {success && <p className="hint success">{success}</p>}
 
-      <section className="grid two">
+      <section className="grid two workflow-stack">
         <article className="panel">
-          <h2>Belege</h2>
+          <h2>3. Belege</h2>
           <div className="receipt-list">
             {receipts.map((receipt) => (
               <button
@@ -861,24 +2523,34 @@ function App() {
               >
                 <div>
                   <strong>{receipt.merchant || "Unbekannt"}</strong>
-                  <small>{formatReceiptDateTime(receipt)}</small>
+                  <small>
+                    {formatReceiptDateTime(receipt)}{receipt.currency && receipt.currency !== "EUR" ? ` · ${receipt.currency}` : ""}
+                  </small>
                 </div>
-                <span>{euro.format(Number(receipt.total_amount || 0))}</span>
+                <div className="receipt-amounts">
+                  <span className="receipt-amount-original">{formatReceiptOriginalTotal(receipt)}</span>
+                  <span className="receipt-amount-eur">{euro.format(getReceiptEurTotal(receipt))}</span>
+                </div>
               </button>
             ))}
             {!receipts.length && !busy && <p className="hint">Noch keine Belege vorhanden.</p>}
           </div>
+          {!receiptItemCurrencyColumnsReady && (
+            <p className="hint warning">
+              Hinweis: Diese Datenbank läuft noch im alten EUR-Modus. Fremdwährung wird erst nach der Migration vollständig angezeigt.
+            </p>
+          )}
         </article>
 
         <article className="panel">
-          <h2>Positionen</h2>
+          <h2>4. Positionen</h2>
           {!currentReceipt && <p className="hint">Bitte links einen Beleg auswählen.</p>}
           {currentReceipt && (
             <>
               <div className="receipt-actions">
                 <button
                   className="btn secondary"
-                  disabled={busy || !currentReceipt.image_path || !hasSetup}
+                  disabled={busy || !currentReceipt.image_path || !canUseApp}
                   onClick={() => retryAnalysis(currentReceipt)}
                 >
                   Erneut analysieren
@@ -897,30 +2569,65 @@ function App() {
                 >
                   Kostengruppen zuordnen
                 </button>
+                <button
+                  className="btn secondary"
+                  disabled={busy}
+                  onClick={() => deleteReceipt(currentReceipt)}
+                >
+                  Beleg löschen
+                </button>
               </div>
+
+              {!receiptItemCurrencyColumnsReady && (
+                <p className="hint warning">
+                  Währungsänderungen sind erst nach der Migration verfügbar. Aktuell werden Positionen als EUR geführt.
+                </p>
+              )}
 
               <div className="item-list">
                 <div className="item-head">
                   <span>Beschreibung</span>
                   <span>Betrag</span>
                   <span>Kostengruppe</span>
-                  <span>Geschenk</span>
+                  <span>Personenkonto</span>
                 </div>
                 {(currentReceipt.receipt_items || []).map((item) => (
                   <div className="item-row" key={item.id}>
                     <input
+                      className="description-input"
                       value={item.description || ""}
+                      title={item.description || ""}
                       onChange={(e) => patchItem(item.id, { description: e.target.value })}
                     />
-                    <input
-                      className="amount-input"
-                      type="number"
-                      step="0.01"
-                      value={item.amount}
-                      onChange={(e) => patchItem(item.id, { amount: Number(e.target.value || 0) })}
-                    />
+                    <div className="amount-cell">
+                      <input
+                        className="amount-input"
+                        type="text"
+                        inputMode="decimal"
+                        value={Object.prototype.hasOwnProperty.call(amountDrafts, item.id) ? amountDrafts[item.id] : formatAmountDE(getItemOriginalAmount(item))}
+                        title={formatConvertedInfo(item)}
+                        onChange={(e) => updateAmountDraft(item.id, e.target.value)}
+                        onBlur={() => commitAmountDraft(item)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.currentTarget.blur();
+                          }
+                        }}
+                      />
+                      <select
+                        className="currency-input"
+                        value={normalizeCurrencyCode(item.currency || "EUR")}
+                        onChange={(e) => updateItemCurrency(item, e.target.value)}
+                        disabled={!receiptItemCurrencyColumnsReady}
+                      >
+                        {CURRENCY_OPTIONS.map((currency) => (
+                          <option key={currency} value={currency}>{currency}</option>
+                        ))}
+                      </select>
+                      {!receiptItemCurrencyColumnsReady && <span className="fallback-badge">EUR</span>}
+                    </div>
                     <select
-                      className="category-input"
+                      className="category-input cost-group-input"
                       value={item.category || ""}
                       onChange={(e) => patchItem(item.id, { category: e.target.value || null })}
                     >
@@ -929,16 +2636,25 @@ function App() {
                         <option key={group.id || group.name} value={group.name}>{group.name}</option>
                       ))}
                     </select>
-                    <label className="gift-cell" aria-label="Geschenk markieren">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(item.is_gift)}
-                        onChange={(e) => patchItem(item.id, { is_gift: e.target.checked })}
-                      />
-                    </label>
+                    <select
+                      className="category-input account-input"
+                      value={primaryAccountByItemId.get(item.id)?.accountId || defaultFamilyAccount.id}
+                      onChange={(e) => assignItemToAccount(item, e.target.value)}
+                      disabled={!accountCatalogReady}
+                    >
+                      {accountOptions.map((account) => (
+                        <option key={account.id} value={account.id}>{account.name}</option>
+                      ))}
+                    </select>
                   </div>
                 ))}
               </div>
+
+              {!accountCatalogReady && (
+                <p className="hint error">
+                  Personenkonten-Tabelle noch nicht verfügbar: {accountCatalogMessage}
+                </p>
+              )}
 
               <div className="manual-box">
                 <h3>Position manuell hinzufügen</h3>
@@ -955,19 +2671,96 @@ function App() {
                     value={manualDraft.amount}
                     onChange={(e) => setManualDraft((s) => ({ ...s, amount: e.target.value }))}
                   />
-                  <label className="gift-toggle">
-                    <input
-                      type="checkbox"
-                      checked={manualDraft.is_gift}
-                      onChange={(e) => setManualDraft((s) => ({ ...s, is_gift: e.target.checked }))}
-                    />
-                    Geschenk
-                  </label>
+                  <select
+                    value={manualDraft.currency || "EUR"}
+                    onChange={(e) => setManualDraft((s) => ({ ...s, currency: e.target.value }))}
+                    disabled={!receiptItemCurrencyColumnsReady}
+                  >
+                    {CURRENCY_OPTIONS.map((currency) => (
+                      <option key={currency} value={currency}>{currency}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={manualDraft.category || ""}
+                    onChange={(e) => setManualDraft((s) => ({ ...s, category: e.target.value }))}
+                  >
+                    <option value="">Keine Kostengruppe</option>
+                    {activeCostGroups().map((group) => (
+                      <option key={group.id || group.name} value={group.name}>{group.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <button className="btn secondary" onClick={addManualItem}>Hinzufügen</button>
               </div>
             </>
           )}
+        </article>
+      </section>
+
+      <section className="workflow-stack">
+        <article
+          className="panel overview-panel"
+          role="button"
+          tabIndex={0}
+          onClick={() => {
+            setCostGroupModalView("summary");
+            setShowCostGroupModal(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setCostGroupModalView("summary");
+              setShowCostGroupModal(true);
+            }
+          }}
+        >
+          <h2>5. Kostenübersicht</h2>
+          <div className="totals">
+            <div className="total-card main">
+              <span>Haushaltsbuch</span>
+              <strong>{euro.format(mainAccountTotal)}</strong>
+            </div>
+          </div>
+
+          <div className="cost-group-summary">
+            <h3>Kostenübersicht nach Kostengruppen</h3>
+            {!costGroupTotals.length && <p className="hint">Noch keine Positionen mit Kosten vorhanden.</p>}
+            {!!costGroupTotals.length && (
+              <div className="cost-group-summary-list">
+                {costGroupTotals.map((row) => (
+                  <div className="cost-group-summary-row" key={row.name} style={buildSummaryRowStyle(row.color)}>
+                    <span className="cost-group-name">
+                      <span className="cost-group-dot" style={{ backgroundColor: row.color }} />
+                      {row.name}
+                    </span>
+                    <strong>{euro.format(row.total)}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="cost-group-summary">
+            <h3>Kostenübersicht nach Personenkonten</h3>
+            {!accountTotals.length && <p className="hint">Noch keine Kosten vorhanden.</p>}
+            {!!accountTotals.length && (
+              <div className="cost-group-summary-list">
+                {accountTotals.map((row) => (
+                  <div className="cost-group-summary-row" key={row.id} style={buildSummaryRowStyle(row.color)}>
+                    <span className="cost-group-name">
+                      <span className="cost-group-dot" style={{ backgroundColor: row.color }} />
+                      {row.name}
+                    </span>
+                    <strong>{euro.format(row.total)}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="cost-group-summary-actions">
+            <p className="hint">Tippe in diese Karte, um die Liste der Kostengruppen zu öffnen.</p>
+          </div>
         </article>
       </section>
     </div>
