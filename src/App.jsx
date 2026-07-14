@@ -267,15 +267,21 @@ function buildReceiptItemPayload(base, includeCurrencyColumns) {
 }
 
 function getMagicLinkRedirectUrl() {
-  if (AUTH_REDIRECT_URL) {
-    return AUTH_REDIRECT_URL;
-  }
+  const envRedirect = String(AUTH_REDIRECT_URL || "").trim();
 
   if (typeof window !== "undefined") {
-    return window.location.origin;
+    const runtimeOrigin = String(window.location?.origin || "").trim();
+    if (runtimeOrigin && !isLocalhostUrl(runtimeOrigin)) {
+      // Always prefer the currently opened live domain over stale env values.
+      return runtimeOrigin;
+    }
+    if (envRedirect) {
+      return envRedirect;
+    }
+    return runtimeOrigin;
   }
 
-  return undefined;
+  return envRedirect;
 }
 
 function isLocalhostUrl(value) {
