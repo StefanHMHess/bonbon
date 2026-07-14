@@ -15,7 +15,10 @@ const APP_VERSION = "v0.3.0";
 const CURRENCY_OPTIONS = ["EUR", "TRY", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF"];
 const AUTH_EMAIL_STORAGE_KEY = "bonbox_auth_email";
 const VERIFIED_EMAIL_STORAGE_KEY = "bonbox_verified_email";
+const MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY = "bonbox_magic_link_cooldown_until";
 const AUTH_REDIRECT_URL = import.meta.env.VITE_AUTH_REDIRECT_URL || "";
+const MAGIC_LINK_COOLDOWN_MS = 90 * 1000;
+const MAGIC_LINK_RATE_LIMIT_BACKOFF_MS = 15 * 60 * 1000;
 
 const defaultCostGroups = [
   {
@@ -321,6 +324,12 @@ function App() {
   const [accessRecord, setAccessRecord] = useState(null);
   const [approvalStatus, setApprovalStatus] = useState("signed_out");
   const [verifiedEmail, setVerifiedEmail] = useState("");
+  const [magicLinkCooldownUntil, setMagicLinkCooldownUntil] = useState(() => {
+    if (typeof window === "undefined") return 0;
+    const raw = Number(window.localStorage.getItem(MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY) || 0);
+    return Number.isFinite(raw) ? raw : 0;
+  });
+  const [magicLinkNow, setMagicLinkNow] = useState(() => Date.now());
   const [pendingUsers, setPendingUsers] = useState([]);
   const [bootstrapBusy, setBootstrapBusy] = useState(false);
   const [costGroupDrafts, setCostGroupDrafts] = useState({});
@@ -344,6 +353,27 @@ function App() {
   });
   const exchangeRateCache = useRef(new Map());
   const repairedItemIds = useRef(new Set());
+
+  const magicLinkCooldownMsLeft = Math.max(0, Number(magicLinkCooldownUntil || 0) - magicLinkNow);
+  const magicLinkCooldownSeconds = Math.ceil(magicLinkCooldownMsLeft / 1000);
+  const magicLinkBlocked = magicLinkCooldownSeconds > 0;
+
+  useEffect(() => {
+    if (!magicLinkBlocked || typeof window === "undefined") return undefined;
+    const timer = window.setInterval(() => {
+      setMagicLinkNow(Date.now());
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [magicLinkBlocked]);
+
+  useEffect(() => {
+    if (!magicLinkCooldownUntil) return;
+    if (magicLinkCooldownUntil > Date.now()) return;
+    setMagicLinkCooldownUntil(0);
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY);
+    }
+  }, [magicLinkCooldownUntil, magicLinkNow]);
 
   const mainAccountTotal = useMemo(() => sumItems(receipts), [receipts]);
 
@@ -915,6 +945,12 @@ function App() {
 
   async function sendMagicLink() {
     if (!supabase) return;
+
+    if (magicLinkBlocked) {
+      setError(`Bitte noch ${magicLinkCooldownSeconds} Sek. warten, bevor du einen neuen Anmelde-Link sendest.`);
+      return;
+    }
+
     const value = String(authEmail || "").trim().toLowerCase();
     if (!value || !value.includes("@")) {
       setError("Bitte eine gültige E-Mail-Adresse eingeben.");
@@ -939,11 +975,24 @@ function App() {
     if (authError) {
       const msg = String(authError.message || "").toLowerCase();
       if (msg.includes("email rate limit") || msg.includes("over_email_send_rate_limit") || msg.includes("limit exceeded")) {
-        setError("E-Mail-Limit erreicht. Bitte kurz warten und es in einigen Minuten erneut versuchen.");
+        const until = Date.now() + MAGIC_LINK_RATE_LIMIT_BACKOFF_MS;
+        setMagicLinkNow(Date.now());
+        setMagicLinkCooldownUntil(until);
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY, String(until));
+        }
+        setError("E-Mail-Limit erreicht. Bitte 15 Minuten warten und dann erneut senden.");
       } else {
         setError(authError.message);
       }
       return;
+    }
+
+    const until = Date.now() + MAGIC_LINK_COOLDOWN_MS;
+    setMagicLinkNow(Date.now());
+    setMagicLinkCooldownUntil(until);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY, String(until));
     }
 
     const approved = await verifyApprovedEmail(value, true);
@@ -2029,8 +2078,8 @@ function App() {
             onChange={(e) => setAuthEmail(e.target.value)}
           />
           <div className="receipt-actions">
-            <button className="btn" disabled={busy || !hasSetup} onClick={sendMagicLink}>
-              {busy ? "Sende..." : "Anmelde-Link senden"}
+            <button className="btn" disabled={busy || !hasSetup || magicLinkBlocked} onClick={sendMagicLink}>
+              {busy ? "Sende..." : magicLinkBlocked ? `Warte ${magicLinkCooldownSeconds}s` : "Anmelde-Link senden"}
             </button>
             <button className="btn secondary" disabled={busy || !hasSetup} onClick={checkApprovedEmail}>
               {busy ? "Prüfe..." : "Freigegebene E-Mail prüfen"}
