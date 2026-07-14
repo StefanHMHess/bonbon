@@ -15,6 +15,7 @@ const APP_VERSION = "v0.3.0";
 const CURRENCY_OPTIONS = ["EUR", "TRY", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF"];
 const AUTH_EMAIL_STORAGE_KEY = "bonbox_auth_email";
 const VERIFIED_EMAIL_STORAGE_KEY = "bonbox_verified_email";
+const AUTH_REDIRECT_URL = import.meta.env.VITE_AUTH_REDIRECT_URL || "";
 
 const defaultCostGroups = [
   {
@@ -263,6 +264,18 @@ function buildReceiptItemPayload(base, includeCurrencyColumns) {
   }
 
   return payload;
+}
+
+function getMagicLinkRedirectUrl() {
+  if (AUTH_REDIRECT_URL) {
+    return AUTH_REDIRECT_URL;
+  }
+
+  if (typeof window !== "undefined") {
+    return window.location.origin;
+  }
+
+  return undefined;
 }
 
 function App() {
@@ -896,7 +909,7 @@ function App() {
     const { error: authError } = await supabase.auth.signInWithOtp({
       email: value,
       options: {
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: getMagicLinkRedirectUrl(),
       },
     });
     setBusy(false);
