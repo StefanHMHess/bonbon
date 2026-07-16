@@ -85,19 +85,8 @@ Deno.serve(async (req: Request) => {
     let aiResponse: Response;
 
     if (isPdf) {
-      // PDFs: Herunterladen und als Base64 Data-URL senden (VERSION 20260716-fix-v1)
-      console.log("PDF wird heruntergeladen:", imagePath);
-      const fileDownload = await fetch(signed.data.signedUrl);
-      if (!fileDownload.ok) {
-        console.error("PDF Download fehlgeschlagen:", fileDownload.status);
-        return new Response(JSON.stringify({ error: "PDF konnte nicht heruntergeladen werden" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const pdfBytes = await fileDownload.arrayBuffer();
-      const base64Pdf = btoa(String.fromCharCode(...new Uint8Array(pdfBytes)));
-      console.log("PDF konvertiert zu Base64, Größe:", pdfBytes.byteLength, "bytes");
+      // PDFs: Als signierte URL direkt an OpenAI senden (nicht als Data-URL)
+      console.log("PDF wird per signierter URL an OpenAI gesendet:", imagePath);
 
       aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -115,7 +104,7 @@ Deno.serve(async (req: Request) => {
                 {
                   type: "image_url",
                   image_url: {
-                    url: `data:application/pdf;base64,${base64Pdf}`,
+                    url: signed.data.signedUrl,
                     detail: "high",
                   },
                 },
