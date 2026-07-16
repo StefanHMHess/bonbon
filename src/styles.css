@@ -85,7 +85,17 @@ h2 {
   justify-content: flex-end;
 }
 
-.version-badge,
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  color: #999;
+  font-size: 0.7rem;
+  padding: 2px 4px;
+  border: none;
+  opacity: 0.6;
+}
+
 .email-badge {
   display: inline-flex;
   align-items: center;
