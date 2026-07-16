@@ -85,33 +85,12 @@ Deno.serve(async (req: Request) => {
     let aiResponse: Response;
 
     if (isPdf) {
-      // PDFs: Als signierte URL direkt an OpenAI senden (nicht als Data-URL)
-      console.log("PDF wird per signierter URL an OpenAI gesendet:", imagePath);
-
-      aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${openaiApiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [
-            {
-              role: "user",
-              content: [
-                { type: "text", text: prompt },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: signed.data.signedUrl,
-                    detail: "high",
-                  },
-                },
-              ],
-            },
-          ],
-        }),
+      // PDFs werden nicht direkt unterstützt — müssen als Bild konvertiert werden
+      return new Response(JSON.stringify({ 
+        error: "PDFs werden derzeit nicht unterstützt. Bitte machen Sie einen Screenshot oder fotografieren Sie den Beleg stattdessen." 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     } else {
       // Bilder: direkt per URL
