@@ -2313,7 +2313,7 @@ function App() {
 
       <section className="workflow-stack">
         <article className="panel">
-          <h2>1. Personenkonto auswählen</h2>
+          <h2>1. Personenkonto</h2>
           <div className="upload-account-row">
             <div className="color-select-wrapper" style={buildColorInputStyle(selectedUploadAccount?.color)}>
               <select
@@ -2329,7 +2329,7 @@ function App() {
         </article>
 
         <article className="panel">
-          <h2>2. Beleg auswählen/Foto aufnehmen</h2>
+          <h2>2. Beleg erfassen</h2>
           <div className="file-picker">
             <input
               id="receipt-file"
