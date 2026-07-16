@@ -2925,7 +2925,7 @@ function App() {
           <h2>5. Haushaltsbuch</h2>
           <div className="totals">
             <div className="total-card main">
-              <span>Haushaltsbuch</span>
+              <span>Gesamtausgaben:</span>
               <strong>{euro.format(mainAccountTotal)}</strong>
             </div>
           </div>

@@ -298,6 +298,10 @@ label {
 
 .total-card.main {
   background: linear-gradient(140deg, var(--main), var(--main-deep));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
 }
 
 .total-card.gift {
@@ -309,9 +313,18 @@ label {
   font-weight: 600;
 }
 
+.total-card.main span {
+  font-size: 1rem;
+  font-weight: normal;
+}
+
 .total-card strong {
   font-size: 1.35rem;
   text-align: right;
+}
+
+.total-card.main strong {
+  text-align: left;
 }
 
 .cost-group-summary {
