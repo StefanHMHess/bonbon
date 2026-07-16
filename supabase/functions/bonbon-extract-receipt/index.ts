@@ -85,7 +85,7 @@ Deno.serve(async (req: Request) => {
     let aiResponse: Response;
 
     if (isPdf) {
-      // PDFs: Datei herunterladen, als Base64 kodieren und als file-Block an gpt-4o senden
+      // PDFs: Datei herunterladen, als Base64 kodieren und als document-Block an gpt-4o senden
       const fileDownload = await fetch(signed.data.signedUrl);
       if (!fileDownload.ok) {
         return new Response(JSON.stringify({ error: "PDF konnte nicht heruntergeladen werden" }), {
@@ -110,10 +110,11 @@ Deno.serve(async (req: Request) => {
               content: [
                 { type: "text", text: prompt },
                 {
-                  type: "file",
-                  file: {
-                    filename: "beleg.pdf",
-                    file_data: `data:application/pdf;base64,${base64Pdf}`,
+                  type: "document",
+                  source: {
+                    type: "base64",
+                    media_type: "application/pdf",
+                    data: base64Pdf,
                   },
                 },
               ],
