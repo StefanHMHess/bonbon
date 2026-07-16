@@ -85,7 +85,7 @@ Deno.serve(async (req: Request) => {
     let aiResponse: Response;
 
     if (isPdf) {
-      // PDFs: Herunterladen und als Base64-PDF an OpenAI senden
+      // PDFs: Herunterladen und als Base64 Data-URL senden
       console.log("PDF wird heruntergeladen:", imagePath);
       const fileDownload = await fetch(signed.data.signedUrl);
       if (!fileDownload.ok) {
@@ -113,11 +113,10 @@ Deno.serve(async (req: Request) => {
               content: [
                 { type: "text", text: prompt },
                 {
-                  type: "document",
-                  source: {
-                    type: "base64",
-                    media_type: "application/pdf",
-                    data: base64Pdf,
+                  type: "image_url",
+                  image_url: {
+                    url: `data:application/pdf;base64,${base64Pdf}`,
+                    detail: "high",
                   },
                 },
               ],
