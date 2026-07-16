@@ -40,15 +40,40 @@ select h.id, v.name, v.color, v.keywords, v.sort_order
 from public.households h
 cross join (
   values
-    ('Lebensmittel', '#18b6a3', array['aldi','lidl','rewe','edeka','netto','supermarkt','lebensmittel','bäckerei','baeckerei']::text[], 10),
-    ('Essen & Trinken', '#0f9f8d', array['restaurant','cafe','café','bar','pizza','burger','liefer','imbiss']::text[], 20),
-    ('Mobilität', '#456279', array['tank','shell','aral','uber','taxi','bahn','db','ticket','park']::text[], 30),
-    ('Haushalt', '#ff6b57', array['dm','rossmann','haushalt','reinigung','drogerie','toilettenpapier']::text[], 40),
-    ('Gesundheit', '#eb5a46', array['apotheke','arzt','medikament','medizin','praxis']::text[], 50),
-    ('Freizeit', '#10243e', array['kino','museum','event','sport','training','verein']::text[], 60)
+    ('Lebensmittel', '#059669', array['aldi','lidl','rewe','edeka','netto','supermarkt','lebensmittel','bäckerei','baeckerei']::text[], 10),
+    ('Essen & Trinken', '#2DD4BF', array['restaurant','cafe','café','bar','pizza','burger','liefer','imbiss']::text[], 20),
+    ('Mobilität', '#06B6D4', array['tank','shell','aral','uber','taxi','bahn','db','ticket','park']::text[], 30),
+    ('Haushalt', '#CA8A04', array['dm','rossmann','haushalt','reinigung','drogerie','toilettenpapier']::text[], 40),
+    ('Gesundheit', '#F43F5E', array['apotheke','arzt','medikament','medizin','praxis']::text[], 50),
+    ('Freizeit', '#9F7AEA', array['kino','museum','event','sport','training','verein']::text[], 60),
+    ('Geschenke', '#ff6b57', array['geschenk','gift','present']::text[], 70),
+    ('Urlaub', '#18b6a3', array['urlaub','reise','hotel','flueg','flug','airbnb','vacation','travel']::text[], 80),
+    ('Kleidung', '#1B4965', array['kleidung','kleidet','mode','schuhe','schuh','fashion','hm','zara','primark']::text[], 90),
+    ('Lia', '#0891B2', array['lia']::text[], 100),
+    ('Hunde', '#EEA12D', array['hund','hunde','dog','pet','futter','tierarzt','vet']::text[], 110),
+    ('neue Kostengruppe', '#475569', array[]::text[], 120)
 ) as v(name, color, keywords, sort_order)
 where not exists (
   select 1
   from public.household_cost_groups g
   where g.household_id = h.id and g.name = v.name
 );
+
+-- Update existing cost groups with new colors from palette
+update public.household_cost_groups
+set color = case name
+  when 'Lebensmittel' then '#059669'
+  when 'Essen & Trinken' then '#2DD4BF'
+  when 'Mobilität' then '#06B6D4'
+  when 'Haushalt' then '#CA8A04'
+  when 'Gesundheit' then '#F43F5E'
+  when 'Freizeit' then '#9F7AEA'
+  when 'Geschenke' then '#ff6b57'
+  when 'Urlaub' then '#18b6a3'
+  when 'Kleidung' then '#1B4965'
+  when 'Lia' then '#0891B2'
+  when 'Hunde' then '#EEA12D'
+  when 'neue Kostengruppe' then '#475569'
+  else color
+end
+where name in ('Lebensmittel', 'Essen & Trinken', 'Mobilität', 'Haushalt', 'Gesundheit', 'Freizeit', 'Geschenke', 'Urlaub', 'Kleidung', 'Lia', 'Hunde', 'neue Kostengruppe');

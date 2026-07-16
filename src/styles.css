@@ -12,8 +12,8 @@
   --main-deep: #0f9f8d;
   --gift-deep: #eb5a46;
   --shadow: 0 20px 40px rgba(16, 36, 62, 0.12);
-  --item-grid-columns: 2fr 0.9fr 1.1fr 1.1fr;
-  --cost-group-grid-columns: 1.2fr 0.9fr 1.8fr 0.7fr 116px 116px;
+  --item-grid-columns: 2fr 0.9fr 1.1fr 1.1fr 90px;
+  --cost-group-grid-columns: 1.6fr 0.9fr 1.8fr 0.7fr 116px 116px;
   --account-grid-columns: 1.2fr 0.9fr 0.9fr 0.7fr 116px 116px;
 }
 
@@ -152,6 +152,12 @@ input {
   color: var(--ink);
 }
 
+input[type="number"] {
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  padding: 6px 6px 6px 8px;
+}
+
 select {
   width: 100%;
   border: 1px solid var(--line);
@@ -198,6 +204,28 @@ label {
 
 .upload-account-row label {
   margin-bottom: 0;
+}
+
+.color-select-wrapper {
+  border-radius: 12px;
+  padding: 0;
+  display: flex;
+  align-items: stretch;
+}
+
+.color-select-wrapper select {
+  background: transparent !important;
+  border: none !important;
+  padding: 10px 12px;
+  width: 100%;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+}
+
+.color-select-wrapper select option {
+  background: #fffefb;
+  color: var(--ink);
 }
 
 .file-options {
@@ -247,7 +275,7 @@ label {
 .totals {
   display: grid;
   gap: 10px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .total-card {
@@ -264,6 +292,11 @@ label {
 
 .total-card.gift {
   background: linear-gradient(140deg, var(--gift), var(--gift-deep));
+}
+
+.total-card span {
+  font-size: 1.1rem;
+  font-weight: 600;
 }
 
 .total-card strong {
@@ -329,6 +362,30 @@ label {
   grid-template-columns: var(--cost-group-grid-columns);
   align-items: center;
   margin-bottom: 8px;
+}
+
+.color-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.color-input-wrapper input[type="color"] {
+  width: 50px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 2px;
+}
+
+.color-code {
+  font-family: monospace;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .cost-group-edit-head,
@@ -521,6 +578,15 @@ label {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.amount-input {
+  flex: 1 1 80px;
+}
+
+.currency-input {
+  flex: 0 0 auto;
 }
 
 .fallback-badge {
@@ -549,7 +615,21 @@ label {
 }
 
 .currency-input {
-  width: 92px;
+  width: 60px;
+  font-size: 0.82rem;
+  padding: 2px;
+}
+
+@media (max-width: 480px) {
+  .amount-cell {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .amount-input,
+  .currency-input {
+    width: 100%;
+  }
 }
 
 .category-input {
@@ -570,7 +650,7 @@ label {
   margin-top: 8px;
   display: grid;
   gap: 8px;
-  grid-template-columns: 1fr 110px 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   align-items: center;
 }
 

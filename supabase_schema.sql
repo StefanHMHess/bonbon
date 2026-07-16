@@ -38,6 +38,7 @@ create table if not exists public.receipt_items (
   currency text not null default 'EUR',
   exchange_rate numeric(12,6) not null default 1,
   is_gift boolean not null default false,
+  is_ignored boolean not null default false,
   category text,
   created_at timestamptz not null default now()
 );

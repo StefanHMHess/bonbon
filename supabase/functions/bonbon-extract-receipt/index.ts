@@ -71,32 +71,78 @@ Deno.serve(async (req: Request) => {
 
     const prompt = [
       "Extrahiere den Kassenbon als JSON.",
-      "Erkenne die Originalwährung zuverlässig. Türkische Lira immer als TRY ausgeben.",
+      "Erkenne die Originalwährung exakt. Für türkische Belege: TRY ausgeben. Achte auf Symbole wie ₺, TL, Lira.",
+      "Erkenne Datum im Format YYYY-MM-DD und Uhrzeit im Format HH:MM oder HH:MM:SS.",
       "Antwortformat exakt:",
-      '{"merchant":"...","receiptDate":"YYYY-MM-DD","totalAmount":0,"currency":"EUR","items":[{"description":"...","quantity":1,"amount":0}]}',
+      '{"merchant":"...","receiptDate":"YYYY-MM-DD","receiptTime":"HH:MM","totalAmount":0,"currency":"EUR","items":[{"description":"...","quantity":1,"amount":0}]}',
       "Werte amount/quantity immer in Originalwährung.",
+      "Für türkische Belege: currency muss TRY sein, auch wenn in Zahlen Punkte/Kommas anders formatiert.",
       "Keinen zusätzlichen Text ausgeben."
     ].join("\n");
 
-    const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${openaiApiKey}`,
-      },
-      body: JSON.stringify({
-        model: openaiModel,
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: prompt },
-              { type: "image_url", image_url: { url: signed.data.signedUrl } }
-            ]
-          }
-        ]
-      }),
-    });
+    const isPdf = imagePath.toLowerCase().endsWith(".pdf");
+
+    let aiResponse: Response;
+
+    if (isPdf) {
+      // PDFs: Datei herunterladen, als Base64 kodieren und als file-Block an gpt-4o senden
+      const fileDownload = await fetch(signed.data.signedUrl);
+      if (!fileDownload.ok) {
+        return new Response(JSON.stringify({ error: "PDF konnte nicht heruntergeladen werden" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const pdfBytes = await fileDownload.arrayBuffer();
+      const base64Pdf = btoa(String.fromCharCode(...new Uint8Array(pdfBytes)));
+
+      aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${openaiApiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: prompt },
+                {
+                  type: "file",
+                  file: {
+                    filename: "beleg.pdf",
+                    file_data: `data:application/pdf;base64,${base64Pdf}`,
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+      });
+    } else {
+      // Bilder: direkt per URL
+      aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${openaiApiKey}`,
+        },
+        body: JSON.stringify({
+          model: openaiModel,
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: prompt },
+                { type: "image_url", image_url: { url: signed.data.signedUrl } },
+              ],
+            },
+          ],
+        }),
+      });
+    }
 
     if (!aiResponse.ok) {
       const failText = await aiResponse.text();

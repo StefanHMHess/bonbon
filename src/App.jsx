@@ -13,6 +13,7 @@ const dateTimeDE = new Intl.DateTimeFormat("de-DE", {
 const dateDE = new Intl.DateTimeFormat("de-DE", { dateStyle: "short" });
 const APP_VERSION = "v0.3.0";
 const CURRENCY_OPTIONS = ["EUR", "TRY", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF"];
+const CURRENCY_SYMBOL = { EUR: "€", TRY: "₺", USD: "$", GBP: "£", CHF: "Fr", SEK: "kr", NOK: "kr", DKK: "kr", PLN: "zł", CZK: "Kč", HUF: "Ft" };
 const AUTH_EMAIL_STORAGE_KEY = "bonbox_auth_email";
 const VERIFIED_EMAIL_STORAGE_KEY = "bonbox_verified_email";
 const MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY = "bonbox_magic_link_cooldown_until";
@@ -32,45 +33,75 @@ const defaultCostGroups = [
   {
     id: "grp-food",
     name: "Lebensmittel",
-    color: "#18b6a3",
+    color: "#059669",
     keywords: ["aldi", "lidl", "rewe", "edeka", "netto", "supermarkt", "lebensmittel", "bäckerei", "baeckerei"],
   },
   {
     id: "grp-restaurant",
     name: "Essen & Trinken",
-    color: "#0f9f8d",
+    color: "#2DD4BF",
     keywords: ["restaurant", "cafe", "café", "bar", "pizza", "burger", "liefer", "imbiss"],
   },
   {
     id: "grp-mobility",
     name: "Mobilität",
-    color: "#456279",
+    color: "#06B6D4",
     keywords: ["tank", "shell", "aral", "uber", "taxi", "bahn", "db", "ticket", "park"],
   },
   {
     id: "grp-home",
     name: "Haushalt",
-    color: "#ff6b57",
+    color: "#CA8A04",
     keywords: ["dm", "rossmann", "haushalt", "reinigung", "drogerie", "toilettenpapier"],
   },
   {
     id: "grp-health",
     name: "Gesundheit",
-    color: "#eb5a46",
+    color: "#F43F5E",
     keywords: ["apotheke", "arzt", "medikament", "medizin", "praxis"],
   },
   {
     id: "grp-leisure",
     name: "Freizeit",
-    color: "#10243e",
+    color: "#9F7AEA",
     keywords: ["kino", "museum", "event", "sport", "training", "verein"],
+  },
+  {
+    id: "grp-holiday",
+    name: "Urlaub",
+    color: "#18b6a3",
+    keywords: ["urlaub", "reise", "hotel", "flueg", "flug", "airbnb", "vacation", "travel"],
+  },
+  {
+    id: "grp-clothing",
+    name: "Kleidung",
+    color: "#1B4965",
+    keywords: ["kleidung", "kleidet", "mode", "schuhe", "schuh", "fashion", "hm", "zara", "primark"],
+  },
+  {
+    id: "grp-lia",
+    name: "Lia",
+    color: "#0891B2",
+    keywords: ["lia"],
+  },
+  {
+    id: "grp-hunde",
+    name: "Hunde",
+    color: "#EEA12D",
+    keywords: ["hund", "hunde", "dog", "pet", "futter", "tierarzt", "vet"],
+  },
+  {
+    id: "grp-new",
+    name: "neue Kostengruppe",
+    color: "#475569",
+    keywords: [],
   },
 ];
 
 const defaultFamilyAccount = {
   id: "family-default",
   name: "Familienkonto",
-  color: "#10243e",
+  color: "#EEA12D",
   account_type: "family",
 };
 
@@ -80,11 +111,13 @@ const emptyDraft = {
   amount: "",
   currency: "EUR",
   category: "",
+  accountId: defaultFamilyAccount.id,
 };
 
 function sumItems(receipts) {
   return receipts.reduce((acc, receipt) => {
     const chunk = (receipt.receipt_items || []).reduce((rowAcc, item) => {
+      if (item.is_ignored === true) return rowAcc;
       return rowAcc + Number(item.amount || 0);
     }, 0);
     return acc + chunk;
@@ -97,7 +130,9 @@ function formatReceiptDateTime(receipt) {
   }
 
   if (receipt?.receipt_date) {
-    return dateDE.format(new Date(`${receipt.receipt_date}T00:00:00`));
+    const baseTime = `${receipt.receipt_date}T`;
+    const aiTime = receipt?.ai_raw_json?.receiptTime || "00:00";
+    return dateDE.format(new Date(`${baseTime}${aiTime}:00`));
   }
 
   return "-";
@@ -228,11 +263,12 @@ function getReadableTextColor(hexColor) {
 }
 
 function buildColorInputStyle(value) {
-  const normalized = normalizeHexColor(value);
-  if (!normalized) return undefined;
+  const normalized = normalizeHexColor(value || defaultFamilyAccount.color);
+  const color = normalized || defaultFamilyAccount.color;
+  const textColor = normalized ? getReadableTextColor(normalized) : getReadableTextColor(defaultFamilyAccount.color);
   return {
-    backgroundColor: normalized,
-    color: getReadableTextColor(normalized),
+    backgroundColor: color,
+    color: textColor,
     borderColor: "rgba(16, 36, 62, 0.24)",
     fontWeight: 700,
   };
@@ -362,6 +398,7 @@ function App() {
   const [accountCatalogMessage, setAccountCatalogMessage] = useState("");
   const [accountDrafts, setAccountDrafts] = useState({});
   const [receiptItemCurrencyColumnsReady, setReceiptItemCurrencyColumnsReady] = useState(true);
+  const [receiptItemIgnoreColumnReady, setReceiptItemIgnoreColumnReady] = useState(true);
   const [newCostGroup, setNewCostGroup] = useState({
     name: "",
     color: "#18b6a3",
@@ -407,6 +444,7 @@ function App() {
 
     for (const receipt of receipts) {
       for (const item of receipt.receipt_items || []) {
+        if (item.is_ignored === true) continue;
         const groupName = item.category || "Ohne Kostengruppe";
         const old = totals.get(groupName) || 0;
         totals.set(groupName, old + Number(item.amount || 0));
@@ -437,6 +475,7 @@ function App() {
       const isMonth = isYear && receiptDate.getMonth() === month;
 
       for (const item of receipt.receipt_items || []) {
+        if (item.is_ignored === true) continue;
         const groupName = item.category || "Ohne Kostengruppe";
         const row = details.get(groupName) || {
           name: groupName,
@@ -486,6 +525,7 @@ function App() {
 
     for (const receipt of receipts) {
       for (const item of receipt.receipt_items || []) {
+        if (item.is_ignored === true) continue;
         const itemAmount = Number(item.amount || 0);
         const allocations = allocByItemId.get(item.id) || [];
 
@@ -548,6 +588,7 @@ function App() {
       const isMonth = isYear && receiptDate.getMonth() === month;
 
       for (const item of receipt.receipt_items || []) {
+        if (item.is_ignored) continue;
         const itemAmount = Number(item.amount || 0);
         const allocations = allocByItemId.get(item.id) || [];
         const totalAllocatedRaw = allocations.reduce((sum, alloc) => sum + Number(alloc.amount || 0), 0);
@@ -621,7 +662,11 @@ function App() {
   }, [familyAccounts]);
 
   const selectedUploadAccount = useMemo(() => {
-    return accountOptions.find((account) => account.id === newReceiptAccountId) || defaultFamilyAccount;
+    const account = accountOptions.find((account) => account.id === newReceiptAccountId) || defaultFamilyAccount;
+    return {
+      ...account,
+      color: account.color || defaultFamilyAccount.color,
+    };
   }, [accountOptions, newReceiptAccountId]);
 
   const primaryAccountByItemId = useMemo(() => {
@@ -1247,15 +1292,26 @@ function App() {
     setBusy(true);
     setError("");
 
-    const withCurrencyColumns = "id, merchant, receipt_date, total_amount, currency, image_path, ai_status, created_at, receipt_items(id, description, quantity, amount, original_amount, currency, exchange_rate, category)";
+    const withAllColumns = "id, merchant, receipt_date, total_amount, currency, image_path, ai_status, created_at, receipt_items(id, description, quantity, amount, original_amount, currency, exchange_rate, category, is_ignored)";
+    const withoutIgnored = "id, merchant, receipt_date, total_amount, currency, image_path, ai_status, created_at, receipt_items(id, description, quantity, amount, original_amount, currency, exchange_rate, category)";
     const withoutCurrencyColumns = "id, merchant, receipt_date, total_amount, currency, image_path, ai_status, created_at, receipt_items(id, description, quantity, amount, category)";
 
     let response = await supabase
       .from("receipts")
-      .select(withCurrencyColumns)
+      .select(withAllColumns)
       .eq("household_id", householdId)
       .order("receipt_date", { ascending: false })
       .order("created_at", { ascending: false });
+
+    if (response.error && String(response.error.message || "").includes("is_ignored")) {
+      setReceiptItemIgnoreColumnReady(false);
+      response = await supabase
+        .from("receipts")
+        .select(withoutIgnored)
+        .eq("household_id", householdId)
+        .order("receipt_date", { ascending: false })
+        .order("created_at", { ascending: false });
+    }
 
     if (response.error && String(response.error.message || "").includes("original_amount")) {
       setReceiptItemCurrencyColumnsReady(false);
@@ -1278,6 +1334,7 @@ function App() {
 
     if (!response.error) {
       setReceiptItemCurrencyColumnsReady(true);
+      setReceiptItemIgnoreColumnReady(true);
     }
 
     setReceipts(data || []);
@@ -1877,7 +1934,7 @@ function App() {
     };
 
     let insertError;
-    let insertResponse = await supabase.from("receipt_items").insert(buildReceiptItemPayload(row, receiptItemCurrencyColumnsReady));
+    let insertResponse = await supabase.from("receipt_items").insert(buildReceiptItemPayload(row, receiptItemCurrencyColumnsReady)).select();
 
     if (insertResponse.error && String(insertResponse.error.message || "").includes("original_amount")) {
       setReceiptItemCurrencyColumnsReady(false);
@@ -1887,13 +1944,18 @@ function App() {
         quantity: Number(manualDraft.quantity || 1),
         amount,
         category: manualDraft.category || inferCostGroupName(manualDraft.description, groups),
-      }, false));
+      }, false)).select();
     }
 
     insertError = insertResponse.error;
     if (insertError) {
       setError(insertError.message);
       return;
+    }
+
+    const insertedItem = insertResponse.data?.[0];
+    if (insertedItem?.id && manualDraft.accountId && manualDraft.accountId !== defaultFamilyAccount.id) {
+      await setSingleItemAllocation(insertedItem.id, manualDraft.accountId, amount);
     }
 
     setManualDraft(emptyDraft);
@@ -1918,6 +1980,10 @@ function App() {
     }
 
     await loadReceipts();
+  }
+
+  async function toggleIgnoreItem(item) {
+    await patchItem(item.id, { is_ignored: !item.is_ignored });
   }
 
   async function updateItemCurrency(item, currency) {
@@ -2085,7 +2151,20 @@ function App() {
       return;
     }
 
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    // iOS blockiert window.open nach async-Aufrufen — Link-Element verwenden
+    const a = document.createElement("a");
+    a.href = data.signedUrl;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    // PDFs als Download anbieten falls Browser kein In-App-Preview zeigt
+    if (receipt.image_path.toLowerCase().endsWith(".pdf")) {
+      a.download = receipt.merchant
+        ? `${receipt.merchant}.pdf`
+        : "beleg.pdf";
+    }
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 
   const currentReceipt = receipts.find((r) => r.id === selectedReceipt) || null;
@@ -2241,15 +2320,16 @@ function App() {
           <p className="hint">Dieses Konto wird neuen Positionen beim Erfassen automatisch zugewiesen.</p>
           <div className="upload-account-row">
             <label>Personenkonto für neue Positionen</label>
-            <select
-              value={newReceiptAccountId}
-              onChange={(e) => setNewReceiptAccountId(e.target.value)}
-              style={buildColorInputStyle(selectedUploadAccount?.color)}
-            >
-              {accountOptions.map((account) => (
-                <option key={account.id} value={account.id}>{account.name}</option>
-              ))}
-            </select>
+            <div className="color-select-wrapper" style={buildColorInputStyle(selectedUploadAccount?.color)}>
+              <select
+                value={newReceiptAccountId}
+                onChange={(e) => setNewReceiptAccountId(e.target.value)}
+              >
+                {accountOptions.map((account) => (
+                  <option key={account.id} value={account.id}>{account.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </article>
 
@@ -2486,12 +2566,13 @@ function App() {
                         onChange={(e) => updateCostGroupDraft(group.id, "name", e.target.value)}
                         placeholder="Name"
                       />
-                      <input
-                        value={draft.color}
-                        onChange={(e) => updateCostGroupDraft(group.id, "color", e.target.value)}
-                        style={buildColorInputStyle(draft.color)}
-                        placeholder="#18b6a3"
-                      />
+                      <div className="color-input-wrapper">
+                        <input
+                          type="color"
+                          value={draft.color}
+                          onChange={(e) => updateCostGroupDraft(group.id, "color", e.target.value)}
+                        />
+                      </div>
                       <input
                         value={draft.keywordsText}
                         onChange={(e) => updateCostGroupDraft(group.id, "keywordsText", e.target.value)}
@@ -2516,12 +2597,13 @@ function App() {
                       onChange={(e) => setNewCostGroup((s) => ({ ...s, name: e.target.value }))}
                       placeholder="Neue Kostengruppe"
                     />
-                    <input
-                      value={newCostGroup.color}
-                      onChange={(e) => setNewCostGroup((s) => ({ ...s, color: e.target.value }))}
-                      style={buildColorInputStyle(newCostGroup.color)}
-                      placeholder="#18b6a3"
-                    />
+                    <div className="color-input-wrapper">
+                      <input
+                        type="color"
+                        value={newCostGroup.color}
+                        onChange={(e) => setNewCostGroup((s) => ({ ...s, color: e.target.value }))}
+                      />
+                    </div>
                     <input
                       value={newCostGroup.keywordsText}
                       onChange={(e) => setNewCostGroup((s) => ({ ...s, keywordsText: e.target.value }))}
@@ -2582,12 +2664,13 @@ function App() {
                         onChange={(e) => updateAccountDraft(account.id, "name", e.target.value)}
                         placeholder="Name"
                       />
-                      <input
-                        value={draft.color}
-                        onChange={(e) => updateAccountDraft(account.id, "color", e.target.value)}
-                        style={buildColorInputStyle(draft.color)}
-                        placeholder="#18b6a3"
-                      />
+                      <div className="color-input-wrapper">
+                        <input
+                          type="color"
+                          value={draft.color}
+                          onChange={(e) => updateAccountDraft(account.id, "color", e.target.value)}
+                        />
+                      </div>
                       <select
                         value={draft.accountType}
                         onChange={(e) => updateAccountDraft(account.id, "accountType", e.target.value)}
@@ -2617,12 +2700,13 @@ function App() {
                       onChange={(e) => setNewAccount((s) => ({ ...s, name: e.target.value }))}
                       placeholder="Neues Personenkonto"
                     />
-                    <input
-                      value={newAccount.color}
-                      onChange={(e) => setNewAccount((s) => ({ ...s, color: e.target.value }))}
-                      style={buildColorInputStyle(newAccount.color)}
-                      placeholder="#18b6a3"
-                    />
+                    <div className="color-input-wrapper">
+                      <input
+                        type="color"
+                        value={newAccount.color}
+                        onChange={(e) => setNewAccount((s) => ({ ...s, color: e.target.value }))}
+                      />
+                    </div>
                     <select
                       value={newAccount.accountType}
                       onChange={(e) => setNewAccount((s) => ({ ...s, accountType: e.target.value }))}
@@ -2728,6 +2812,7 @@ function App() {
                   <span>Betrag</span>
                   <span>Kostengruppe</span>
                   <span>Personenkonto</span>
+                  {receiptItemIgnoreColumnReady && <span>Aktion</span>}
                 </div>
                 {(currentReceipt.receipt_items || []).map((item) => (
                   <div className="item-row" key={item.id}>
@@ -2759,10 +2844,10 @@ function App() {
                         disabled={!receiptItemCurrencyColumnsReady}
                       >
                         {CURRENCY_OPTIONS.map((currency) => (
-                          <option key={currency} value={currency}>{currency}</option>
+                          <option key={currency} value={currency}>{CURRENCY_SYMBOL[currency] ?? currency}</option>
                         ))}
                       </select>
-                      {!receiptItemCurrencyColumnsReady && <span className="fallback-badge">EUR</span>}
+                      {!receiptItemCurrencyColumnsReady && <span className="fallback-badge">€</span>}
                     </div>
                     <select
                       className="category-input cost-group-input"
@@ -2784,6 +2869,15 @@ function App() {
                         <option key={account.id} value={account.id}>{account.name}</option>
                       ))}
                     </select>
+                    <button
+                      className={`btn mini-btn ${item.is_ignored ? 'secondary' : ''}`}
+                      title={item.is_ignored ? 'Diese Position wird nicht in der Kostenübersicht berücksichtigt' : 'Position ignorieren'}
+                      onClick={() => toggleIgnoreItem(item)}
+                      disabled={busy || !receiptItemIgnoreColumnReady}
+                      style={!receiptItemIgnoreColumnReady ? { display: 'none' } : undefined}
+                    >
+                      {item.is_ignored ? '✓ Ignoriert' : 'Ignorieren'}
+                    </button>
                   </div>
                 ))}
               </div>
@@ -2796,35 +2890,51 @@ function App() {
 
               <div className="manual-box">
                 <h3>Position manuell hinzufügen</h3>
-                <input
-                  placeholder="Beschreibung"
-                  value={manualDraft.description}
-                  onChange={(e) => setManualDraft((s) => ({ ...s, description: e.target.value }))}
-                />
-                <div className="manual-grid">
+                <div className="item-row">
                   <input
-                    type="number"
-                    step="0.01"
-                    placeholder="Betrag"
-                    value={manualDraft.amount}
-                    onChange={(e) => setManualDraft((s) => ({ ...s, amount: e.target.value }))}
+                    className="description-input"
+                    placeholder="Beschreibung"
+                    value={manualDraft.description}
+                    onChange={(e) => setManualDraft((s) => ({ ...s, description: e.target.value }))}
                   />
+                  <div className="amount-cell">
+                    <input
+                      className="amount-input"
+                      type="number"
+                      step="0.01"
+                      placeholder="Betrag"
+                      value={manualDraft.amount}
+                      onChange={(e) => setManualDraft((s) => ({ ...s, amount: e.target.value }))}
+                    />
+                    <select
+                      className="currency-input"
+                      value={manualDraft.currency || "EUR"}
+                      onChange={(e) => setManualDraft((s) => ({ ...s, currency: e.target.value }))}
+                      disabled={!receiptItemCurrencyColumnsReady}
+                    >
+                      {CURRENCY_OPTIONS.map((currency) => (
+                        <option key={currency} value={currency}>{CURRENCY_SYMBOL[currency] ?? currency}</option>
+                      ))}
+                    </select>
+                  </div>
                   <select
-                    value={manualDraft.currency || "EUR"}
-                    onChange={(e) => setManualDraft((s) => ({ ...s, currency: e.target.value }))}
-                    disabled={!receiptItemCurrencyColumnsReady}
-                  >
-                    {CURRENCY_OPTIONS.map((currency) => (
-                      <option key={currency} value={currency}>{currency}</option>
-                    ))}
-                  </select>
-                  <select
+                    className="category-input cost-group-input"
                     value={manualDraft.category || ""}
                     onChange={(e) => setManualDraft((s) => ({ ...s, category: e.target.value }))}
                   >
                     <option value="">Keine Kostengruppe</option>
                     {activeCostGroups().map((group) => (
                       <option key={group.id || group.name} value={group.name}>{group.name}</option>
+                    ))}
+                  </select>
+                  <select
+                    className="category-input account-input"
+                    value={manualDraft.accountId || defaultFamilyAccount.id}
+                    onChange={(e) => setManualDraft((s) => ({ ...s, accountId: e.target.value }))}
+                    disabled={!accountCatalogReady}
+                  >
+                    {accountOptions.map((account) => (
+                      <option key={account.id} value={account.id}>{account.name}</option>
                     ))}
                   </select>
                 </div>
