@@ -11,7 +11,7 @@ const dateTimeDE = new Intl.DateTimeFormat("de-DE", {
   timeStyle: "short",
 });
 const dateDE = new Intl.DateTimeFormat("de-DE", { dateStyle: "short" });
-const APP_VERSION = "v0.3.0";
+const APP_VERSION = "v0.3.1";
 const CURRENCY_OPTIONS = ["EUR", "TRY", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF"];
 const CURRENCY_SYMBOL = { EUR: "€", TRY: "₺", USD: "$", GBP: "£", CHF: "Fr", SEK: "kr", NOK: "kr", DKK: "kr", PLN: "zł", CZK: "Kč", HUF: "Ft" };
 const AUTH_EMAIL_STORAGE_KEY = "bonbox_auth_email";
@@ -2273,9 +2273,6 @@ function App() {
           <p>Belege scannen, KI auswerten, Haushaltsbuch automatisch pflegen.</p>
         </div>
         <div className="top-right-badges">
-          <span className="email-badge">{displayEmail}</span>
-          {isEmailVerified && <span className="email-badge">E-Mail geprüft</span>}
-          {isAdmin && <span className="email-badge">Admin</span>}
           <span className="version-badge">{APP_VERSION}</span>
           <button className="btn secondary mini-btn" onClick={signOut}>Abmelden</button>
         </div>
@@ -2292,7 +2289,7 @@ function App() {
       )}
 
       {isAdmin && (
-        <section className="panel setup-panel">
+        <section className="panel setup-panel" style={{ display: 'none' }}>
           <h2>Benutzerfreigaben</h2>
           <p className="hint">Neue Benutzer erscheinen hier automatisch nach ihrem ersten Login per E-Mail-Link und können dann freigegeben werden.</p>
           {!pendingUsers.length && <p className="hint">Keine offenen Freigaben.</p>}
@@ -2316,10 +2313,7 @@ function App() {
 
       <section className="workflow-stack">
         <article className="panel">
-          <h2>1. Personenkonto auswählen</h2>
-          <p className="hint">Dieses Konto wird neuen Positionen beim Erfassen automatisch zugewiesen.</p>
           <div className="upload-account-row">
-            <label>Personenkonto für neue Positionen</label>
             <div className="color-select-wrapper" style={buildColorInputStyle(selectedUploadAccount?.color)}>
               <select
                 value={newReceiptAccountId}
@@ -2334,53 +2328,18 @@ function App() {
         </article>
 
         <article className="panel">
-          <h2>2. Neuen Beleg erfassen</h2>
-          <p className="hint">Foto oder Scan auswählen und von der KI auslesen lassen.</p>
           <div className="file-picker">
-            <div className="file-options">
-              <div className="file-option">
-                <input
-                  id="receipt-camera"
-                  className="file-input-hidden"
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                />
-                <label htmlFor="receipt-camera" className="btn secondary file-trigger">
-                  Foto aufnehmen
-                </label>
-                <span className="file-option-note">Kamera direkt öffnen</span>
-              </div>
-
-              <div className="file-option">
-                <input
-                  id="receipt-photos"
-                  className="file-input-hidden"
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                />
-                <label htmlFor="receipt-photos" className="btn secondary file-trigger">
-                  Aus Fotomediathek wählen
-                </label>
-                <span className="file-option-note">Ein Bild aus Fotos importieren</span>
-              </div>
-
-              <div className="file-option">
-                <input
-                  id="receipt-files"
-                  className="file-input-hidden"
-                  type="file"
-                  accept="image/*,application/pdf"
-                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                />
-                <label htmlFor="receipt-files" className="btn secondary file-trigger">
-                  Aus Dateien importieren
-                </label>
-                <span className="file-option-note">Für PDF oder gespeicherte Scans</span>
-              </div>
-            </div>
+            <input
+              id="receipt-file"
+              className="file-input-hidden"
+              type="file"
+              accept="image/*,application/pdf"
+              capture="environment"
+              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+            />
+            <label htmlFor="receipt-file" className="btn secondary file-trigger">
+              Beleg auswählen/Foto aufnehmen
+            </label>
             <p className="hint file-name">
               {selectedFile ? `Ausgewählt: ${selectedFile.name}` : "Noch keine Datei ausgewählt"}
             </p>
