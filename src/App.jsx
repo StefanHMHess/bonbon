@@ -2270,7 +2270,7 @@ function App() {
         <img src="/bonbon-logo.svg" alt="BonBox" className="hero-logo" />
         <div>
           <h1>BonBox</h1>
-          <p>Belege scannen, KI auswerten, Haushaltsbuch automatisch pflegen.</p>
+          <p>Belege scannen, KI-Auswertung, Haushaltsbuch</p>
         </div>
         <div className="top-right-badges">
           <span className="version-badge">{APP_VERSION}</span>
