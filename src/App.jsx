@@ -2922,7 +2922,7 @@ function App() {
             }
           }}
         >
-          <h2>5. Kostenübersicht</h2>
+          <h2>5. Haushaltsbuch</h2>
           <div className="totals">
             <div className="total-card main">
               <span>Haushaltsbuch</span>
