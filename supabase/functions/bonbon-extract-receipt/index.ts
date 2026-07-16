@@ -85,7 +85,7 @@ Deno.serve(async (req: Request) => {
     let aiResponse: Response;
 
     if (isPdf) {
-      // PDFs: Herunterladen und als Base64 Data-URL senden
+      // PDFs: Herunterladen und als Base64 Data-URL senden (VERSION 20260716-fix-v1)
       console.log("PDF wird heruntergeladen:", imagePath);
       const fileDownload = await fetch(signed.data.signedUrl);
       if (!fileDownload.ok) {
