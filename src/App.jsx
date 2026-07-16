@@ -2336,7 +2336,6 @@ function App() {
               className="file-input-hidden"
               type="file"
               accept="image/*,application/pdf"
-              capture="environment"
               onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
             />
             <label htmlFor="receipt-file" className="btn secondary file-trigger">
