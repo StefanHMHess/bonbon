@@ -2743,7 +2743,10 @@ function App() {
                 onClick={() => setSelectedReceipt(receipt.id)}
               >
                 <div>
-                  <strong>{receipt.merchant || "Unbekannt"}</strong>
+                  <strong>
+                    {receipt.merchant || "Unbekannt"}
+                    {receipt.image_path?.toLowerCase().endsWith(".pdf") && <span className="badge-pdf">PDF</span>}
+                  </strong>
                   <small>
                     {formatReceiptDateTime(receipt)}{receipt.currency && receipt.currency !== "EUR" ? ` · ${receipt.currency}` : ""}
                   </small>
