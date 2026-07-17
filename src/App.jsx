@@ -2162,14 +2162,8 @@ function App() {
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
       
-      // Öffne in neuem Tab
-      const a = document.createElement("a");
-      a.href = objectUrl;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      // Öffne in neuem Tab via window.open statt Link-Click
+      window.open(objectUrl, "_blank", "noopener,noreferrer");
       
       // Cleanup: URL nach 5s revoken
       setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
