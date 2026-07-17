@@ -2159,19 +2159,33 @@ function App() {
       const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
       
       if (isPdf) {
-        // PDFs: als Blob laden um Content-Disposition zu umgehen
+        // PDFs: als Data URL laden (umgeht Content-Disposition)
+        setPreviewBusy(true);
         const response = await fetch(data.signedUrl);
         if (!response.ok) throw new Error("PDF konnte nicht geladen werden");
         const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        window.open(url, "_blank");
-        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result;
+          const win = window.open();
+          win.document.write(`
+            <html>
+              <head><title>Beleg</title></head>
+              <body style="margin:0;padding:0;overflow:hidden;">
+                <embed src="${dataUrl}" type="application/pdf" style="width:100%;height:100vh;"/>
+              </body>
+            </html>
+          `);
+          setPreviewBusy(false);
+        };
+        reader.readAsDataURL(blob);
       } else {
         // Bilder: direkt öffnen
         window.open(data.signedUrl, "_blank");
       }
     } catch (err) {
       setError(err.message || "Beleg konnte nicht geöffnet werden.");
+      setPreviewBusy(false);
     }
   }
 
