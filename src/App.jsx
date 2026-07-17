@@ -2156,26 +2156,8 @@ function App() {
     }
 
     try {
-      const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
-      
-      if (isPdf) {
-        // Für PDFs: in iframe mit selbst geschriebener Seite anzeigen
-        const win = window.open("", "_blank");
-        if (win) {
-          win.document.write(`
-            <html>
-              <head><title>Beleg</title></head>
-              <body style="margin:0;padding:0;overflow:hidden;">
-                <iframe src="${data.signedUrl}" style="border:none;width:100%;height:100vh;"></iframe>
-              </body>
-            </html>
-          `);
-          win.document.close();
-        }
-      } else {
-        // Für Bilder: direkt in neuem Tab öffnen
-        window.open(data.signedUrl, "_blank", "noopener,noreferrer");
-      }
+      // Öffne direkt im Browser — PDF-Viewer und Bilder sollten funktionieren
+      window.open(data.signedUrl, "_blank");
     } catch (err) {
       setError(err.message || "Beleg konnte nicht geöffnet werden.");
     }
