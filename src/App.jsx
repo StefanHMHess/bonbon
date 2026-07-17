@@ -2148,46 +2148,36 @@ function App() {
       .from("receipts")
       .createSignedUrl(receipt.image_path, 300);
 
+    setPreviewBusy(false);
+
     if (signError || !data?.signedUrl) {
-      setPreviewBusy(false);
       setError(signError?.message || "Beleg konnte nicht geöffnet werden.");
       return;
     }
 
     try {
-      // Lade Datei als Blob — umgeht Content-Disposition: attachment Problem
-      const response = await fetch(data.signedUrl);
-      if (!response.ok) throw new Error("Datei konnte nicht geladen werden");
+      const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
       
-      const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      
-      // Öffne in neuem Tab mit iframe-Ansatz um Download-Dialog zu vermeiden
-      const win = window.open("", "_blank");
-      if (win) {
-        const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
-        if (isPdf) {
-          // Für PDFs: iframe mit PDF-Viewer nutzen
+      if (isPdf) {
+        // Für PDFs: in iframe mit selbst geschriebener Seite anzeigen
+        const win = window.open("", "_blank");
+        if (win) {
           win.document.write(`
             <html>
               <head><title>Beleg</title></head>
               <body style="margin:0;padding:0;overflow:hidden;">
-                <iframe src="${objectUrl}" style="border:none;width:100%;height:100vh;"></iframe>
+                <iframe src="${data.signedUrl}" style="border:none;width:100%;height:100vh;"></iframe>
               </body>
             </html>
           `);
-        } else {
-          // Für Bilder: direkt im Tab anzeigen
-          win.location.href = objectUrl;
+          win.document.close();
         }
+      } else {
+        // Für Bilder: direkt in neuem Tab öffnen
+        window.open(data.signedUrl, "_blank", "noopener,noreferrer");
       }
-      
-      // Cleanup: URL nach 10s revoken
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
     } catch (err) {
       setError(err.message || "Beleg konnte nicht geöffnet werden.");
-    } finally {
-      setPreviewBusy(false);
     }
   }
 
