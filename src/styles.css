@@ -12,7 +12,6 @@
   --main-deep: #0f9f8d;
   --gift-deep: #eb5a46;
   --shadow: 0 20px 40px rgba(16, 36, 62, 0.12);
-  --item-grid-columns: 2fr 0.9fr 1.1fr 1.1fr 90px;
   --cost-group-grid-columns: 1.6fr 0.9fr 1.8fr 0.7fr 116px 116px;
   --account-grid-columns: 1.2fr 0.9fr 0.9fr 0.7fr 116px 116px;
 }
@@ -580,15 +579,35 @@ label {
 .item-head {
   display: grid;
   gap: 8px;
-  grid-template-columns: var(--item-grid-columns);
+  grid-template-columns: 2fr 1fr 1fr auto;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "desc amount amount action"
+    "desc group account action";
   align-items: center;
   color: var(--ink-soft);
   font-size: 0.82rem;
   font-weight: 700;
 }
 
+.item-head span:nth-child(1) {
+  grid-area: desc;
+}
+
 .item-head span:nth-child(2) {
-  text-align: left;
+  grid-area: amount;
+}
+
+.item-head span:nth-child(3) {
+  grid-area: group;
+}
+
+.item-head span:nth-child(4) {
+  grid-area: account;
+}
+
+.item-head span:nth-child(5) {
+  grid-area: action;
 }
 
 .receipt-actions {
@@ -605,8 +624,12 @@ label {
 .item-row {
   display: grid;
   gap: 8px;
-  grid-template-columns: var(--item-grid-columns);
-  align-items: center;
+  grid-template-columns: 2fr 1fr 1fr auto;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "desc amount amount action"
+    "desc group account action";
+  align-items: flex-start;
 }
 
 .amount-cell {
@@ -742,6 +765,27 @@ label {
 
 .detail-table-row strong {
   text-align: right;
+}
+
+.description-input {
+  grid-area: desc;
+  min-height: 60px;
+  resize: vertical;
+  padding: 8px;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+.amount-cell {
+  grid-area: amount;
+}
+
+.cost-group-input {
+  grid-area: group;
+}
+
+.account-input {
+  grid-area: account;
 }
 
 @keyframes reveal {
