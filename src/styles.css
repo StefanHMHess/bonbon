@@ -108,8 +108,10 @@ h2 {
 
 .mini-btn {
   margin-top: 0;
-  padding: 6px 10px;
-  font-size: 0.78rem;
+  padding: 4px 6px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .grid.two {
@@ -673,7 +675,7 @@ label {
 }
 
 .currency-input {
-  width: 60px;
+  width: 45px;
   font-size: 0.82rem;
   padding: 2px;
 }
