@@ -2156,8 +2156,20 @@ function App() {
     }
 
     try {
-      // Öffne direkt im Browser — PDF-Viewer und Bilder sollten funktionieren
-      window.open(data.signedUrl, "_blank");
+      const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
+      
+      if (isPdf) {
+        // PDFs: als Blob laden um Content-Disposition zu umgehen
+        const response = await fetch(data.signedUrl);
+        if (!response.ok) throw new Error("PDF konnte nicht geladen werden");
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank");
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+      } else {
+        // Bilder: direkt öffnen
+        window.open(data.signedUrl, "_blank");
+      }
     } catch (err) {
       setError(err.message || "Beleg konnte nicht geöffnet werden.");
     }
