@@ -2144,14 +2144,59 @@ function App() {
     setPreviewBusy(true);
     setError("");
 
+    const { data, error: signError } = await supabase.storage
+      .from("receipts")
+      .createSignedUrl(receipt.image_path, 300);
+
+    setPreviewBusy(false);
+
+    if (signError || !data?.signedUrl) {
+      setError(signError?.message || "Beleg konnte nicht geöffnet werden.");
+      return;
+    }
+
     try {
-      // Use Edge Function to serve file with inline Content-Disposition
-      const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bonbon-serve-receipt?file=${encodeURIComponent(receipt.image_path)}`;
-      window.open(proxyUrl, "_blank");
+      const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
+      
+      if (isPdf) {
+        // PDFs: Blob laden → Data URL → in <iframe> einbetten
+        const response = await fetch(data.signedUrl);
+        if (!response.ok) throw new Error("PDF konnte nicht geladen werden");
+        const blob = await response.blob();
+        const reader = new FileReader();
+        reader.onload = () => {
+          const pdfDataUrl = reader.result;
+          // Erstelle HTML mit PDF eingebettet in iframe
+          const htmlContent = `
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <meta charset="utf-8">
+                <title>Beleg</title>
+                <style>
+                  body { margin: 0; padding: 0; overflow: hidden; }
+                  #pdfViewer { width: 100%; height: 100vh; border: none; }
+                </style>
+              </head>
+              <body>
+                <object id="pdfViewer" data="${pdfDataUrl}" type="application/pdf">
+                  <p>PDF konnte nicht angezeigt werden. <a href="${pdfDataUrl}" download>Herunterladen</a></p>
+                </object>
+              </body>
+            </html>
+          `;
+          const htmlBlob = new Blob([htmlContent], { type: "text/html" });
+          const htmlUrl = URL.createObjectURL(htmlBlob);
+          window.open(htmlUrl, "_blank");
+          setTimeout(() => URL.revokeObjectURL(htmlUrl), 120000);
+        };
+        reader.readAsDataURL(blob);
+      } else {
+        // Bilder: direkt öffnen
+        window.open(data.signedUrl, "_blank");
+      }
     } catch (err) {
       setError(err.message || "Beleg konnte nicht geöffnet werden.");
-    } finally {
-      setPreviewBusy(false);
     }
   }
 
