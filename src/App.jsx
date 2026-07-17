@@ -2162,11 +2162,28 @@ function App() {
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
       
-      // Öffne in neuem Tab via window.open statt Link-Click
-      window.open(objectUrl, "_blank", "noopener,noreferrer");
+      // Öffne in neuem Tab mit iframe-Ansatz um Download-Dialog zu vermeiden
+      const win = window.open("", "_blank");
+      if (win) {
+        const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
+        if (isPdf) {
+          // Für PDFs: iframe mit PDF-Viewer nutzen
+          win.document.write(`
+            <html>
+              <head><title>Beleg</title></head>
+              <body style="margin:0;padding:0;overflow:hidden;">
+                <iframe src="${objectUrl}" style="border:none;width:100%;height:100vh;"></iframe>
+              </body>
+            </html>
+          `);
+        } else {
+          // Für Bilder: direkt im Tab anzeigen
+          win.location.href = objectUrl;
+        }
+      }
       
-      // Cleanup: URL nach 5s revoken
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
+      // Cleanup: URL nach 10s revoken
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
     } catch (err) {
       setError(err.message || "Beleg konnte nicht geöffnet werden.");
     } finally {
