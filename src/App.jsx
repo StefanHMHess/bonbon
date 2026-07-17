@@ -2159,28 +2159,14 @@ function App() {
       const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
       
       if (isPdf) {
-        // PDFs: als Blob zu Data URL, dann in neuem Fenster öffnen
+        // PDFs: als Blob laden und Object URL nutzen
         const response = await fetch(data.signedUrl);
         if (!response.ok) throw new Error("PDF konnte nicht geladen werden");
         const blob = await response.blob();
-        const reader = new FileReader();
-        reader.onload = () => {
-          const pdfDataUrl = reader.result;
-          // Erstelle HTML-Dokument als Blob URL
-          const htmlContent = `
-            <html>
-              <head><title>Beleg</title><meta charset="utf-8"></head>
-              <body style="margin:0;padding:0;overflow:hidden;">
-                <embed src="${pdfDataUrl}" type="application/pdf" style="width:100%;height:100vh;"/>
-              </body>
-            </html>
-          `;
-          const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
-          const htmlUrl = URL.createObjectURL(htmlBlob);
-          window.open(htmlUrl, "_blank");
-          setTimeout(() => URL.revokeObjectURL(htmlUrl), 10000);
-        };
-        reader.readAsDataURL(blob);
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, "_blank");
+        // URL nach 1s revoken damit Browser das PDF laden kann
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
       } else {
         // Bilder: direkt öffnen
         window.open(data.signedUrl, "_blank");
