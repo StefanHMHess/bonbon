@@ -2159,33 +2159,27 @@ function App() {
       const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
       
       if (isPdf) {
-        // PDFs: mit Google Docs Viewer öffnen (umgeht Download-Dialog)
+        // PDFs: mit Google Docs Viewer öffnen (iOS-kompatibel)
         const encodedUrl = encodeURIComponent(data.signedUrl);
         const googleViewerUrl = `https://docs.google.com/gview?url=${encodedUrl}&embedded=true`;
         
-        const htmlContent = `
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <meta charset="utf-8">
-              <title>Beleg</title>
-              <style>
-                body { margin: 0; padding: 0; overflow: hidden; font-family: Arial, sans-serif; }
-                iframe { width: 100%; height: 100vh; border: none; }
-              </style>
-            </head>
-            <body>
-              <iframe src="${googleViewerUrl}"></iframe>
-            </body>
-          </html>
-        `;
-        const htmlBlob = new Blob([htmlContent], { type: "text/html" });
-        const htmlUrl = URL.createObjectURL(htmlBlob);
-        window.open(htmlUrl, "_blank");
-        setTimeout(() => URL.revokeObjectURL(htmlUrl), 120000);
+        // iOS: direktes href-Link-Element nutzen statt window.open
+        const link = document.createElement("a");
+        link.href = googleViewerUrl;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       } else {
-        // Bilder: direkt öffnen
-        window.open(data.signedUrl, "_blank");
+        // Bilder: direkt öffnen (iOS-kompatibel)
+        const link = document.createElement("a");
+        link.href = data.signedUrl;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
     } catch (err) {
       setError(err.message || "Beleg konnte nicht geöffnet werden.");
