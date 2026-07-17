@@ -2160,12 +2160,6 @@ function App() {
     a.href = data.signedUrl;
     a.target = "_blank";
     a.rel = "noopener noreferrer";
-    // PDFs als Download anbieten falls Browser kein In-App-Preview zeigt
-    if (receipt.image_path.toLowerCase().endsWith(".pdf")) {
-      a.download = receipt.merchant
-        ? `${receipt.merchant}.pdf`
-        : "beleg.pdf";
-    }
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
