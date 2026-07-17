@@ -2159,27 +2159,22 @@ function App() {
       const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
       
       if (isPdf) {
-        // PDFs: mit Google Docs Viewer öffnen (iOS-kompatibel)
+        // PDFs: mit Google Docs Viewer öffnen
         const encodedUrl = encodeURIComponent(data.signedUrl);
         const googleViewerUrl = `https://docs.google.com/gview?url=${encodedUrl}&embedded=true`;
-        
-        // iOS: direktes href-Link-Element nutzen statt window.open
-        const link = document.createElement("a");
-        link.href = googleViewerUrl;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        // iOS: target="_blank" in window.open verwenden
+        const win = window.open(googleViewerUrl, "_blank", "noopener");
+        if (!win) {
+          // Fallback wenn window.open blockiert
+          window.location.href = googleViewerUrl;
+        }
       } else {
-        // Bilder: direkt öffnen (iOS-kompatibel)
-        const link = document.createElement("a");
-        link.href = data.signedUrl;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        // Bilder: direkt öffnen
+        const win = window.open(data.signedUrl, "_blank", "noopener");
+        if (!win) {
+          // Fallback wenn window.open blockiert
+          window.location.href = data.signedUrl;
+        }
       }
     } catch (err) {
       setError(err.message || "Beleg konnte nicht geöffnet werden.");
