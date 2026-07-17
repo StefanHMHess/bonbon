@@ -2159,24 +2159,26 @@ function App() {
       const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
       
       if (isPdf) {
-        // PDFs: als Data URL laden (umgeht Content-Disposition)
-        setPreviewBusy(true);
+        // PDFs: als Blob zu Data URL, dann in neuem Fenster öffnen
         const response = await fetch(data.signedUrl);
         if (!response.ok) throw new Error("PDF konnte nicht geladen werden");
         const blob = await response.blob();
         const reader = new FileReader();
         reader.onload = () => {
-          const dataUrl = reader.result;
-          const win = window.open();
-          win.document.write(`
+          const pdfDataUrl = reader.result;
+          // Erstelle HTML-Dokument als Blob URL
+          const htmlContent = `
             <html>
-              <head><title>Beleg</title></head>
+              <head><title>Beleg</title><meta charset="utf-8"></head>
               <body style="margin:0;padding:0;overflow:hidden;">
-                <embed src="${dataUrl}" type="application/pdf" style="width:100%;height:100vh;"/>
+                <embed src="${pdfDataUrl}" type="application/pdf" style="width:100%;height:100vh;"/>
               </body>
             </html>
-          `);
-          setPreviewBusy(false);
+          `;
+          const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+          const htmlUrl = URL.createObjectURL(htmlBlob);
+          window.open(htmlUrl, "_blank");
+          setTimeout(() => URL.revokeObjectURL(htmlUrl), 10000);
         };
         reader.readAsDataURL(blob);
       } else {
@@ -2185,7 +2187,6 @@ function App() {
       }
     } catch (err) {
       setError(err.message || "Beleg konnte nicht geöffnet werden.");
-      setPreviewBusy(false);
     }
   }
 
