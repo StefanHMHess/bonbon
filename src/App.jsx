@@ -2694,27 +2694,6 @@ function App() {
       <section className="grid two workflow-stack">
         <article className="panel">
           <h2>3. Belege</h2>
-          <div className="receipt-list">
-            {receipts.map((receipt) => (
-              <button
-                key={receipt.id}
-                className={`receipt-button ${receipt.id === selectedReceipt ? "active" : ""}`}
-                onClick={() => setSelectedReceipt(receipt.id)}
-              >
-                <div>
-                  <strong>{receipt.merchant || "Unbekannt"}</strong>
-                  <small>
-                    {formatReceiptDateTime(receipt)}{receipt.currency && receipt.currency !== "EUR" ? ` · ${receipt.currency}` : ""}
-                  </small>
-                </div>
-                <div className="receipt-amounts">
-                  <span className="receipt-amount-original">{formatReceiptOriginalTotal(receipt)}</span>
-                  <span className="receipt-amount-eur">{euro.format(getReceiptEurTotal(receipt))}</span>
-                </div>
-              </button>
-            ))}
-            {!receipts.length && !busy && <p className="hint">Noch keine Belege vorhanden.</p>}
-          </div>
           {currentReceipt && (
             <div className="receipt-actions">
               <button
@@ -2740,6 +2719,27 @@ function App() {
               </button>
             </div>
           )}
+          <div className="receipt-list">
+            {receipts.map((receipt) => (
+              <button
+                key={receipt.id}
+                className={`receipt-button ${receipt.id === selectedReceipt ? "active" : ""}`}
+                onClick={() => setSelectedReceipt(receipt.id)}
+              >
+                <div>
+                  <strong>{receipt.merchant || "Unbekannt"}</strong>
+                  <small>
+                    {formatReceiptDateTime(receipt)}{receipt.currency && receipt.currency !== "EUR" ? ` · ${receipt.currency}` : ""}
+                  </small>
+                </div>
+                <div className="receipt-amounts">
+                  <span className="receipt-amount-original">{formatReceiptOriginalTotal(receipt)}</span>
+                  <span className="receipt-amount-eur">{euro.format(getReceiptEurTotal(receipt))}</span>
+                </div>
+              </button>
+            ))}
+            {!receipts.length && !busy && <p className="hint">Noch keine Belege vorhanden.</p>}
+          </div>
           {!receiptItemCurrencyColumnsReady && (
             <p className="hint warning">
               Hinweis: Diese Datenbank läuft noch im alten EUR-Modus. Fremdwährung wird erst nach der Migration vollständig angezeigt.
