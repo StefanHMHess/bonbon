@@ -2148,21 +2148,36 @@ function App() {
       .from("receipts")
       .createSignedUrl(receipt.image_path, 300);
 
-    setPreviewBusy(false);
-
     if (signError || !data?.signedUrl) {
+      setPreviewBusy(false);
       setError(signError?.message || "Beleg konnte nicht geöffnet werden.");
       return;
     }
 
-    // iOS blockiert window.open nach async-Aufrufen — Link-Element verwenden
-    const a = document.createElement("a");
-    a.href = data.signedUrl;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    try {
+      // Lade Datei als Blob — umgeht Content-Disposition: attachment Problem
+      const response = await fetch(data.signedUrl);
+      if (!response.ok) throw new Error("Datei konnte nicht geladen werden");
+      
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      
+      // Öffne in neuem Tab
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      // Cleanup: URL nach 5s revoken
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
+    } catch (err) {
+      setError(err.message || "Beleg konnte nicht geöffnet werden.");
+    } finally {
+      setPreviewBusy(false);
+    }
   }
 
   const currentReceipt = receipts.find((r) => r.id === selectedReceipt) || null;
