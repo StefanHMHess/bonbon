@@ -2159,14 +2159,14 @@ function App() {
       const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
       
       if (isPdf) {
-        // PDFs: Blob laden → Data URL → in <iframe> einbetten
+        // PDFs: Blob laden → Data URL → mit <embed> anzeigen
         const response = await fetch(data.signedUrl);
         if (!response.ok) throw new Error("PDF konnte nicht geladen werden");
         const blob = await response.blob();
         const reader = new FileReader();
         reader.onload = () => {
           const pdfDataUrl = reader.result;
-          // Erstelle HTML mit PDF eingebettet in iframe
+          // Erstelle HTML mit PDF eingebettet via <embed>
           const htmlContent = `
             <!DOCTYPE html>
             <html>
@@ -2174,14 +2174,12 @@ function App() {
                 <meta charset="utf-8">
                 <title>Beleg</title>
                 <style>
-                  body { margin: 0; padding: 0; overflow: hidden; }
-                  #pdfViewer { width: 100%; height: 100vh; border: none; }
+                  body { margin: 0; padding: 0; overflow: hidden; font-family: Arial, sans-serif; }
+                  embed { width: 100%; height: 100vh; }
                 </style>
               </head>
               <body>
-                <object id="pdfViewer" data="${pdfDataUrl}" type="application/pdf">
-                  <p>PDF konnte nicht angezeigt werden. <a href="${pdfDataUrl}" download>Herunterladen</a></p>
-                </object>
+                <embed src="${pdfDataUrl}" type="application/pdf"/>
               </body>
             </html>
           `;
