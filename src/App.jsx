@@ -127,8 +127,11 @@ function sumItems(receipts) {
 function formatReceiptDateTime(receipt) {
   if (receipt?.receipt_date) {
     const baseTime = `${receipt.receipt_date}T`;
-    const aiTime = receipt?.receipt_time || receipt?.ai_raw_json?.receiptTime || "00:00";
-    return dateDE.format(new Date(`${baseTime}${aiTime}:00`));
+    const aiTime = receipt?.receipt_time || receipt?.ai_raw_json?.receiptTime || null;
+    if (aiTime) {
+      return dateTimeDE.format(new Date(`${baseTime}${aiTime}:00`));
+    }
+    return dateDE.format(new Date(receipt.receipt_date));
   }
 
   if (receipt?.created_at) {
