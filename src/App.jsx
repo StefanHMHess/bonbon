@@ -2159,36 +2159,27 @@ function App() {
       const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
       
       if (isPdf) {
-        // PDFs: Blob laden → Data URL → mit <embed> anzeigen
-        const response = await fetch(data.signedUrl);
-        if (!response.ok) throw new Error("PDF konnte nicht geladen werden");
-        const blob = await response.blob();
-        const reader = new FileReader();
-        reader.onload = () => {
-          const pdfDataUrl = reader.result;
-          // Erstelle HTML mit PDF eingebettet via <embed>
-          const htmlContent = `
-            <!DOCTYPE html>
-            <html>
-              <head>
-                <meta charset="utf-8">
-                <title>Beleg</title>
-                <style>
-                  body { margin: 0; padding: 0; overflow: hidden; font-family: Arial, sans-serif; }
-                  embed { width: 100%; height: 100vh; }
-                </style>
-              </head>
-              <body>
-                <embed src="${pdfDataUrl}" type="application/pdf"/>
-              </body>
-            </html>
-          `;
-          const htmlBlob = new Blob([htmlContent], { type: "text/html" });
-          const htmlUrl = URL.createObjectURL(htmlBlob);
-          window.open(htmlUrl, "_blank");
-          setTimeout(() => URL.revokeObjectURL(htmlUrl), 120000);
-        };
-        reader.readAsDataURL(blob);
+        // PDFs: signierte URL in iframe laden (umgeht Download-Dialog)
+        const htmlContent = `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8">
+              <title>Beleg</title>
+              <style>
+                body { margin: 0; padding: 0; overflow: hidden; font-family: Arial, sans-serif; }
+                iframe { width: 100%; height: 100vh; border: none; }
+              </style>
+            </head>
+            <body>
+              <iframe src="${data.signedUrl}" type="application/pdf"></iframe>
+            </body>
+          </html>
+        `;
+        const htmlBlob = new Blob([htmlContent], { type: "text/html" });
+        const htmlUrl = URL.createObjectURL(htmlBlob);
+        window.open(htmlUrl, "_blank");
+        setTimeout(() => URL.revokeObjectURL(htmlUrl), 120000);
       } else {
         // Bilder: direkt öffnen
         window.open(data.signedUrl, "_blank");
