@@ -2144,22 +2144,12 @@ function App() {
     setPreviewBusy(true);
     setError("");
 
-    const { data, error: signError } = await supabase.storage
-      .from("receipts")
-      .createSignedUrl(receipt.image_path, 300);
-
-    setPreviewBusy(false);
-
-    if (signError || !data?.signedUrl) {
-      setError(signError?.message || "Beleg konnte nicht geöffnet werden.");
-      return;
-    }
-
     try {
       const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
       
       if (isPdf) {
-        // PDFs: signierte URL in iframe laden (umgeht Download-Dialog)
+        // PDFs: über Edge Function mit inline Content-Disposition servieren
+        const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bonbon-serve-receipt?file=${encodeURIComponent(receipt.image_path)}`;
         const htmlContent = `
           <!DOCTYPE html>
           <html>
@@ -2172,7 +2162,7 @@ function App() {
               </style>
             </head>
             <body>
-              <iframe src="${data.signedUrl}" type="application/pdf"></iframe>
+              <iframe src="${functionUrl}"></iframe>
             </body>
           </html>
         `;
@@ -2182,10 +2172,20 @@ function App() {
         setTimeout(() => URL.revokeObjectURL(htmlUrl), 120000);
       } else {
         // Bilder: direkt öffnen
-        window.open(data.signedUrl, "_blank");
+        const { data, error: signError } = await supabase.storage
+          .from("receipts")
+          .createSignedUrl(receipt.image_path, 300);
+        
+        if (!signError && data?.signedUrl) {
+          window.open(data.signedUrl, "_blank");
+        } else {
+          throw new Error(signError?.message || "Bild konnte nicht geöffnet werden");
+        }
       }
     } catch (err) {
       setError(err.message || "Beleg konnte nicht geöffnet werden.");
+    } finally {
+      setPreviewBusy(false);
     }
   }
 
