@@ -2159,25 +2159,13 @@ function App() {
       const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
       
       if (isPdf) {
-        // PDFs: als Blob laden, iframe nutzen um inline display zu erzwingen
+        // PDFs: als Blob laden und mit Object URL öffnen
         const response = await fetch(data.signedUrl);
         if (!response.ok) throw new Error("PDF konnte nicht geladen werden");
         const blob = await response.blob();
         const blobUrl = URL.createObjectURL(blob);
-        
-        // Öffne in neuem Tab mit iframe (erzwingt inline display)
-        const win = window.open();
-        win.document.write(`
-          <!DOCTYPE html>
-          <html>
-            <head><title>Beleg</title></head>
-            <body style="margin:0;padding:0;">
-              <iframe src="${blobUrl}" style="width:100%;height:100vh;border:none;"></iframe>
-            </body>
-          </html>
-        `);
-        win.document.close();
-        
+        // Öffne direkt mit dem Blob-URL
+        window.open(blobUrl, "_blank");
         setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
       } else {
         // Bilder: direkt öffnen
