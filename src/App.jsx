@@ -2144,37 +2144,14 @@ function App() {
     setPreviewBusy(true);
     setError("");
 
-    const { data, error: signError } = await supabase.storage
-      .from("receipts")
-      .createSignedUrl(receipt.image_path, 300);
-
-    setPreviewBusy(false);
-
-    if (signError || !data?.signedUrl) {
-      setError(signError?.message || "Beleg konnte nicht geöffnet werden.");
-      return;
-    }
-
     try {
-      const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
-      
-      if (isPdf) {
-        // PDFs: als Blob laden, zu Data URL konvertieren und öffnen
-        const response = await fetch(data.signedUrl);
-        if (!response.ok) throw new Error("PDF konnte nicht geladen werden");
-        const blob = await response.blob();
-        const reader = new FileReader();
-        reader.onload = () => {
-          const dataUrl = reader.result;
-          window.open(dataUrl, "_blank");
-        };
-        reader.readAsDataURL(blob);
-      } else {
-        // Bilder: direkt öffnen
-        window.open(data.signedUrl, "_blank");
-      }
+      // Use Edge Function to serve file with inline Content-Disposition
+      const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bonbon-serve-receipt?file=${encodeURIComponent(receipt.image_path)}`;
+      window.open(proxyUrl, "_blank");
     } catch (err) {
       setError(err.message || "Beleg konnte nicht geöffnet werden.");
+    } finally {
+      setPreviewBusy(false);
     }
   }
 
