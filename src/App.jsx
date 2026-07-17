@@ -2144,12 +2144,25 @@ function App() {
     setPreviewBusy(true);
     setError("");
 
+    const { data, error: signError } = await supabase.storage
+      .from("receipts")
+      .createSignedUrl(receipt.image_path, 300);
+
+    setPreviewBusy(false);
+
+    if (signError || !data?.signedUrl) {
+      setError(signError?.message || "Beleg konnte nicht geöffnet werden.");
+      return;
+    }
+
     try {
       const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
       
       if (isPdf) {
-        // PDFs: über Edge Function mit inline Content-Disposition servieren
-        const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bonbon-serve-receipt?file=${encodeURIComponent(receipt.image_path)}`;
+        // PDFs: mit Google Docs Viewer öffnen (umgeht Download-Dialog)
+        const encodedUrl = encodeURIComponent(data.signedUrl);
+        const googleViewerUrl = `https://docs.google.com/gview?url=${encodedUrl}&embedded=true`;
+        
         const htmlContent = `
           <!DOCTYPE html>
           <html>
@@ -2162,7 +2175,7 @@ function App() {
               </style>
             </head>
             <body>
-              <iframe src="${functionUrl}"></iframe>
+              <iframe src="${googleViewerUrl}"></iframe>
             </body>
           </html>
         `;
@@ -2172,20 +2185,10 @@ function App() {
         setTimeout(() => URL.revokeObjectURL(htmlUrl), 120000);
       } else {
         // Bilder: direkt öffnen
-        const { data, error: signError } = await supabase.storage
-          .from("receipts")
-          .createSignedUrl(receipt.image_path, 300);
-        
-        if (!signError && data?.signedUrl) {
-          window.open(data.signedUrl, "_blank");
-        } else {
-          throw new Error(signError?.message || "Bild konnte nicht geöffnet werden");
-        }
+        window.open(data.signedUrl, "_blank");
       }
     } catch (err) {
       setError(err.message || "Beleg konnte nicht geöffnet werden.");
-    } finally {
-      setPreviewBusy(false);
     }
   }
 
