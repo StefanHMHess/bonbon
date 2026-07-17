@@ -125,14 +125,14 @@ function sumItems(receipts) {
 }
 
 function formatReceiptDateTime(receipt) {
-  if (receipt?.created_at) {
-    return dateTimeDE.format(new Date(receipt.created_at));
-  }
-
   if (receipt?.receipt_date) {
     const baseTime = `${receipt.receipt_date}T`;
-    const aiTime = receipt?.ai_raw_json?.receiptTime || "00:00";
+    const aiTime = receipt?.receipt_time || receipt?.ai_raw_json?.receiptTime || "00:00";
     return dateDE.format(new Date(`${baseTime}${aiTime}:00`));
+  }
+
+  if (receipt?.created_at) {
+    return dateTimeDE.format(new Date(receipt.created_at));
   }
 
   return "-";
@@ -1292,9 +1292,9 @@ function App() {
     setBusy(true);
     setError("");
 
-    const withAllColumns = "id, merchant, receipt_date, total_amount, currency, image_path, ai_status, created_at, receipt_items(id, description, quantity, amount, original_amount, currency, exchange_rate, category, is_ignored)";
-    const withoutIgnored = "id, merchant, receipt_date, total_amount, currency, image_path, ai_status, created_at, receipt_items(id, description, quantity, amount, original_amount, currency, exchange_rate, category)";
-    const withoutCurrencyColumns = "id, merchant, receipt_date, total_amount, currency, image_path, ai_status, created_at, receipt_items(id, description, quantity, amount, category)";
+    const withAllColumns = "id, merchant, receipt_date, receipt_time, total_amount, currency, image_path, ai_status, created_at, receipt_items(id, description, quantity, amount, original_amount, currency, exchange_rate, category, is_ignored)";
+    const withoutIgnored = "id, merchant, receipt_date, receipt_time, total_amount, currency, image_path, ai_status, created_at, receipt_items(id, description, quantity, amount, original_amount, currency, exchange_rate, category)";
+    const withoutCurrencyColumns = "id, merchant, receipt_date, receipt_time, total_amount, currency, image_path, ai_status, created_at, receipt_items(id, description, quantity, amount, category)";
 
     let response = await supabase
       .from("receipts")
@@ -1721,6 +1721,7 @@ function App() {
       .update({
         merchant: parsed.merchant || "Unbekannt",
         receipt_date: parsed.receiptDate || new Date().toISOString().slice(0, 10),
+        receipt_time: parsed.receiptTime || null,
         total_amount: convertedTotalAmount,
         currency: rawCurrency,
         ai_status: "done",

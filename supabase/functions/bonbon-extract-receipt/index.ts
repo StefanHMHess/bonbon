@@ -30,6 +30,128 @@ async function getExchangeRateToEur(currency: string) {
   return Number.isFinite(rate) && rate > 0 ? rate : 1;
 }
 
+async function convertPdfToImage(
+  admin: any,
+  imagePath: string,
+  cloudconvertApiKey: string
+): Promise<string> {
+  if (!cloudconvertApiKey) {
+    throw new Error("CloudConvert API Key nicht konfiguriert");
+  }
+
+  console.log("Downloade PDF von Supabase:", imagePath);
+
+  // PDF-Datei von Supabase Storage downloaden
+  const { data, error } = await admin.storage
+    .from("receipts")
+    .download(imagePath);
+
+  if (error || !data) {
+    throw new Error(`Fehler beim PDF-Download: ${error?.message || "Unbekannter Fehler"}`);
+  }
+
+  console.log("PDF heruntergeladen, Größe:", data.size, "bytes");
+
+  // PDF zu Base64 encodieren
+  const buffer = await data.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binaryString = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binaryString += String.fromCharCode(bytes[i]);
+  }
+  const base64Data = btoa(binaryString);
+
+  console.log("Sende PDF zu CloudConvert (import/base64)...");
+
+  // Job mit import/base64 erstellen (kein separater Upload nötig)
+  const jobResponse = await fetch("https://api.cloudconvert.com/v2/jobs", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${cloudconvertApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      tasks: {
+        import_file: {
+          operation: "import/base64",
+          file: base64Data,
+          filename: "receipt.pdf",
+        },
+        convert: {
+          operation: "convert",
+          input: "import_file",
+          output_format: "jpg",
+        },
+        export: {
+          operation: "export/url",
+          input: "convert",
+        },
+      },
+    }),
+  });
+
+  if (!jobResponse.ok) {
+    const errorText = await jobResponse.text();
+    console.error("CloudConvert Job Create Error:", jobResponse.status, errorText);
+    throw new Error(`CloudConvert Fehler (${jobResponse.status}): ${errorText}`);
+  }
+
+  const jobData = await jobResponse.json();
+  const jobId = jobData.data?.id;
+
+  if (!jobId) {
+    throw new Error("CloudConvert Job ID nicht erhalten");
+  }
+
+  console.log("✅ CloudConvert Job erstellt:", jobId);
+
+  // Warte auf Fertigstellung (max 10 Minuten = 600 Sekunden = 1200 * 500ms)
+  let attempts = 0;
+  while (attempts < 1200) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    attempts++;
+
+    const statusResponse = await fetch(`https://api.cloudconvert.com/v2/jobs/${jobId}`, {
+      headers: {
+        "Authorization": `Bearer ${cloudconvertApiKey}`,
+      },
+    });
+
+    if (!statusResponse.ok) {
+      if (attempts % 10 === 0) {
+        console.log(`Status Check ${attempts}: Fehler ${statusResponse.status}`);
+      }
+      continue;
+    }
+
+    const statusData = await statusResponse.json();
+    const status = statusData.data?.status;
+
+    if (attempts % 20 === 0 || status !== "waiting") {
+      console.log(`Status Check ${attempts} (${Math.round(attempts * 500 / 1000)}s): ${status}`);
+    }
+
+    if (status === "finished") {
+      const tasks = statusData.data?.tasks || [];
+      const exportTask = tasks.find((t: any) => t.operation === "export/url");
+      const imageUrl = exportTask?.result?.files?.[0]?.url;
+
+      if (imageUrl) {
+        console.log("✅ PDF erfolgreich konvertiert zu:", imageUrl);
+        return imageUrl;
+      } else {
+        console.error("Keine konvertierte Datei in Tasks:", JSON.stringify(tasks));
+        throw new Error("Keine konvertierte Datei erhalten");
+      }
+    } else if (status === "failed") {
+      console.error("Job fehlgeschlagen, Details:", statusData);
+      throw new Error(`CloudConvert Job fehlgeschlagen: ${statusData.data?.message || "Unbekannter Fehler"}`);
+    }
+  }
+
+  throw new Error("CloudConvert Conversion Timeout (über 10 Minuten)");
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -47,6 +169,7 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY") || "";
+    const cloudconvertApiKey = Deno.env.get("CLOUDCONVERT_API_KEY") || "";
     const openaiModel = Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
 
     if (!supabaseUrl || !serviceRole || !openaiApiKey) {
@@ -57,17 +180,6 @@ Deno.serve(async (req: Request) => {
     }
 
     const admin = createClient(supabaseUrl, serviceRole);
-
-    const signed = await admin.storage
-      .from("receipts")
-      .createSignedUrl(imagePath, 60);
-
-    if (signed.error || !signed.data?.signedUrl) {
-      return new Response(JSON.stringify({ error: signed.error?.message || "Signed URL Fehler" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     const prompt = [
       "Extrahiere den Kassenbon als JSON.",
@@ -83,37 +195,67 @@ Deno.serve(async (req: Request) => {
     const isPdf = imagePath.toLowerCase().endsWith(".pdf");
 
     let aiResponse: Response;
+    let imageUrlToUse: string;
 
+    // Wenn PDF: zuerst zu Bild konvertieren
     if (isPdf) {
-      // PDFs werden nicht direkt unterstützt — müssen als Bild konvertiert werden
-      return new Response(JSON.stringify({ 
-        error: "PDFs werden derzeit nicht unterstützt. Bitte machen Sie einen Screenshot oder fotografieren Sie den Beleg stattdessen." 
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      if (!cloudconvertApiKey) {
+        return new Response(JSON.stringify({ 
+          error: "PDF-Konvertierung nicht konfiguriert. Bitte machen Sie einen Screenshot oder fotografieren Sie den Beleg stattdessen." 
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      try {
+        console.log("Starte PDF-Konvertierung für:", imagePath);
+        imageUrlToUse = await convertPdfToImage(admin, imagePath, cloudconvertApiKey);
+      } catch (err) {
+        console.error("PDF-Konvertierung fehlgeschlagen:", err);
+        return new Response(JSON.stringify({ 
+          error: `PDF-Konvertierung fehlgeschlagen: ${String(err)}` 
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     } else {
-      // Bilder: direkt per URL
-      aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${openaiApiKey}`,
-        },
-        body: JSON.stringify({
-          model: openaiModel,
-          messages: [
-            {
-              role: "user",
-              content: [
-                { type: "text", text: prompt },
-                { type: "image_url", image_url: { url: signed.data.signedUrl } },
-              ],
-            },
-          ],
-        }),
-      });
+      // Für Bilder: Signed URL erstellen
+      const signed = await admin.storage
+        .from("receipts")
+        .createSignedUrl(imagePath, 60);
+
+      if (signed.error || !signed.data?.signedUrl) {
+        return new Response(JSON.stringify({ error: signed.error?.message || "Signed URL Fehler" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      imageUrlToUse = signed.data.signedUrl;
     }
+
+    // OpenAI mit dem Bild (entweder direkt oder konvertiert)
+    aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${openaiApiKey}`,
+      },
+      body: JSON.stringify({
+        model: openaiModel,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              { type: "image_url", image_url: { url: imageUrlToUse } },
+            ],
+          },
+        ],
+      }),
+    });
 
     if (!aiResponse.ok) {
       const failText = await aiResponse.text();
