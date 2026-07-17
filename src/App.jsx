@@ -2715,6 +2715,31 @@ function App() {
             ))}
             {!receipts.length && !busy && <p className="hint">Noch keine Belege vorhanden.</p>}
           </div>
+          {currentReceipt && (
+            <div className="receipt-actions">
+              <button
+                className="btn secondary"
+                disabled={busy || !currentReceipt.image_path || !canUseApp}
+                onClick={() => retryAnalysis(currentReceipt)}
+              >
+                Erneut analysieren
+              </button>
+              <button
+                className="btn secondary"
+                disabled={previewBusy || !currentReceipt.image_path}
+                onClick={() => openReceiptPreview(currentReceipt)}
+              >
+                {previewBusy ? "Öffne..." : "Beleg ansehen"}
+              </button>
+              <button
+                className="btn secondary"
+                disabled={busy}
+                onClick={() => deleteReceipt(currentReceipt)}
+              >
+                Beleg löschen
+              </button>
+            </div>
+          )}
           {!receiptItemCurrencyColumnsReady && (
             <p className="hint warning">
               Hinweis: Diese Datenbank läuft noch im alten EUR-Modus. Fremdwährung wird erst nach der Migration vollständig angezeigt.
@@ -2730,31 +2755,10 @@ function App() {
               <div className="receipt-actions">
                 <button
                   className="btn secondary"
-                  disabled={busy || !currentReceipt.image_path || !canUseApp}
-                  onClick={() => retryAnalysis(currentReceipt)}
-                >
-                  Erneut analysieren
-                </button>
-                <button
-                  className="btn secondary"
-                  disabled={previewBusy || !currentReceipt.image_path}
-                  onClick={() => openReceiptPreview(currentReceipt)}
-                >
-                  {previewBusy ? "Öffne..." : "Beleg ansehen"}
-                </button>
-                <button
-                  className="btn secondary"
                   disabled={busy || !currentReceipt.receipt_items?.length}
                   onClick={() => autoAssignCategories(currentReceipt)}
                 >
                   Kostengruppen zuordnen
-                </button>
-                <button
-                  className="btn secondary"
-                  disabled={busy}
-                  onClick={() => deleteReceipt(currentReceipt)}
-                >
-                  Beleg löschen
                 </button>
               </div>
 
