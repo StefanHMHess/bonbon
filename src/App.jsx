@@ -2159,14 +2159,16 @@ function App() {
       const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
       
       if (isPdf) {
-        // PDFs: als Blob laden und mit Object URL öffnen
+        // PDFs: als Blob laden, zu Data URL konvertieren und öffnen
         const response = await fetch(data.signedUrl);
         if (!response.ok) throw new Error("PDF konnte nicht geladen werden");
         const blob = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        // Öffne direkt mit dem Blob-URL
-        window.open(blobUrl, "_blank");
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result;
+          window.open(dataUrl, "_blank");
+        };
+        reader.readAsDataURL(blob);
       } else {
         // Bilder: direkt öffnen
         window.open(data.signedUrl, "_blank");
