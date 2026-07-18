@@ -557,11 +557,11 @@ label {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.85);
   border-radius: 12px;
   pointer-events: none;
   transition: opacity 0.2s ease;
-  z-index: -1;
+  z-index: 1;
 }
 
 .receipt-amounts {
@@ -572,6 +572,8 @@ label {
   white-space: nowrap;
   flex-shrink: 0;
   margin-top: auto;
+  position: relative;
+  z-index: 2;
 }
 
 .receipt-amount-original {
@@ -596,6 +598,8 @@ label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  position: relative;
+  z-index: 2;
 }
 
 .receipt-button small,
@@ -606,6 +610,8 @@ label {
 .receipt-button > div:first-child {
   min-width: 0;
   flex: 1;
+  position: relative;
+  z-index: 2;
 }
 
 .badge-pdf {
