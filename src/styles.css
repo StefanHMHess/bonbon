@@ -546,6 +546,10 @@ label {
   position: relative;
 }
 
+.receipt-button:not(.active) {
+  background: rgba(248, 255, 253, 0.5);
+}
+
 .receipt-button:not(.active)::before {
   content: '';
   position: absolute;
@@ -553,10 +557,11 @@ label {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.5);
   border-radius: 12px;
   pointer-events: none;
   transition: opacity 0.2s ease;
+  z-index: -1;
 }
 
 .receipt-amounts {
