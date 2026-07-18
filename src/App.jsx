@@ -3561,6 +3561,7 @@ function App() {
                 key={receipt.id}
                 className={`receipt-button ${receipt.id === selectedReceipt ? "active" : ""}`}
                 onClick={() => setSelectedReceipt(receipt.id)}
+                style={receipt.payment_account_id ? buildColorInputStyle((paymentAccountOptions.find((a) => a.id === receipt.payment_account_id) || {}).color) : {}}
               >
                 <div>
                   <strong>
