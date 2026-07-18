@@ -120,10 +120,19 @@ h2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+@media (max-width: 900px) {
+  .grid.two {
+    grid-template-columns: 1fr;
+  }
+}
+
 .workflow-stack {
   display: grid;
   gap: 14px;
   margin-bottom: 14px;
+}
+
+article {
 }
 
 .panel {
@@ -316,7 +325,7 @@ label {
 
 .total-card.main span {
   font-size: 1rem;
-  font-weight: normal;
+  font-weight: 900;
 }
 
 .total-card strong {
@@ -524,6 +533,9 @@ label {
   padding: 10px;
   text-align: left;
   cursor: pointer;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  min-width: 0;
 }
 
 .receipt-amounts {
@@ -532,6 +544,8 @@ label {
   justify-content: flex-end;
   gap: 10px;
   white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: auto;
 }
 
 .receipt-amount-original {
@@ -551,10 +565,21 @@ label {
   background: #eafaf6;
 }
 
-.receipt-button strong,
+.receipt-button strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .receipt-button small,
 .receipt-button span {
   display: block;
+}
+
+.receipt-button > div:first-child {
+  min-width: 0;
+  flex: 1;
 }
 
 .badge-pdf {
@@ -576,16 +601,13 @@ label {
 .item-list {
   display: grid;
   gap: 10px;
+  margin-top: 10px;
 }
 
 .item-head {
   display: grid;
   gap: 8px;
-  grid-template-columns: 2fr 1fr 1fr auto;
-  grid-template-rows: auto auto;
-  grid-template-areas:
-    "desc amount amount action"
-    "desc group account action";
+  grid-template-columns: 2fr 1fr 1fr 1fr;
   align-items: center;
   color: var(--ink-soft);
   font-size: 0.82rem;
@@ -593,23 +615,42 @@ label {
 }
 
 .item-head span:nth-child(1) {
-  grid-area: desc;
+  /* Beschreibung */
 }
 
 .item-head span:nth-child(2) {
-  grid-area: amount;
+  /* Betrag */
+  text-align: right;
+  display: inline-block;
+  width: calc(100% - 53px);
 }
 
 .item-head span:nth-child(3) {
-  grid-area: group;
+  /* Kostengruppe */
 }
 
 .item-head span:nth-child(4) {
-  grid-area: account;
+  /* Kostenträger */
 }
 
-.item-head span:nth-child(5) {
-  grid-area: action;
+.receipt-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 0 6px 0;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--ink-lighter);
+}
+
+.receipt-info strong {
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.receipt-info small {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
 }
 
 .receipt-actions {
@@ -626,11 +667,8 @@ label {
 .item-row {
   display: grid;
   gap: 8px;
-  grid-template-columns: 2fr 1fr 1fr auto;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
   grid-template-rows: auto auto;
-  grid-template-areas:
-    "desc amount amount action"
-    "desc group account action";
   align-items: flex-start;
 }
 
@@ -767,6 +805,35 @@ label {
 
 .detail-table-row strong {
   text-align: right;
+}
+
+/* Section header with right-aligned button */
+.section-header-with-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  gap: 16px;
+}
+
+.section-header-with-button h2 {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.section-header-with-button button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Mark missing required fields */
+.missing-required {
+  border-color: #e74c3c !important;
+  box-shadow: 0 0 0 1px #e74c3c inset !important;
+}
+
+.missing-required select {
+  border-color: #e74c3c !important;
 }
 
 .description-input {

@@ -11,7 +11,7 @@ const dateTimeDE = new Intl.DateTimeFormat("de-DE", {
   timeStyle: "short",
 });
 const dateDE = new Intl.DateTimeFormat("de-DE", { dateStyle: "short" });
-const APP_VERSION = "v0.3.3";
+const APP_VERSION = "v0.4.0";
 const CURRENCY_OPTIONS = ["EUR", "TRY", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF"];
 const CURRENCY_SYMBOL = { EUR: "€", TRY: "₺", USD: "$", GBP: "£", CHF: "Fr", SEK: "kr", NOK: "kr", DKK: "kr", PLN: "zł", CZK: "Kč", HUF: "Ft" };
 const AUTH_EMAIL_STORAGE_KEY = "bonbox_auth_email";
@@ -103,6 +103,7 @@ const defaultFamilyAccount = {
   name: "Familienkonto",
   color: "#EEA12D",
   account_type: "family",
+  sort_order: 0,
 };
 
 const emptyDraft = {
@@ -193,15 +194,27 @@ function inferCostGroupName(description, groups) {
   const normalized = normalizeText(description);
   if (!normalized) return null;
 
+  console.log(`[inferCostGroupName] Checking description: "${description}"`);
+  console.log(`[inferCostGroupName] Available groups:`, groups.map(g => ({ 
+    name: g.name, 
+    keywords: g.keywords, 
+    keywordsType: typeof g.keywords,
+    keywordsLength: Array.isArray(g.keywords) ? g.keywords.length : 'N/A'
+  })));
+
   for (const group of groups) {
     const keywords = Array.isArray(group.keywords) ? group.keywords : [];
+    console.log(`  Checking group "${group.name}": keywords =`, keywords);
+    
     for (const keyword of keywords) {
       if (keyword && normalized.includes(normalizeText(keyword))) {
+        console.log(`[inferCostGroupName] ✓ MATCH: "${keyword}" found in "${normalized}" → group: "${group.name}"`);
         return group.name;
       }
     }
   }
 
+  console.log(`[inferCostGroupName] ✗ NO MATCH for "${normalized}"`);
   return null;
 }
 
@@ -364,11 +377,14 @@ function App() {
   const [receipts, setReceipts] = useState([]);
   const [costGroups, setCostGroups] = useState([]);
   const [familyAccounts, setFamilyAccounts] = useState([]);
+  const [costCenters, setCostCenters] = useState([]);
   const [itemAllocations, setItemAllocations] = useState([]);
   const [busy, setBusy] = useState(false);
   const [previewBusy, setPreviewBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [showSetupModal, setShowSetupModal] = useState(false);
+  const [showSetupBanner, setShowSetupBanner] = useState(false);  // Column should exist now
 
   const [selectedFile, setSelectedFile] = useState(null);
   const [manualDraft, setManualDraft] = useState(emptyDraft);
@@ -376,7 +392,10 @@ function App() {
   const [amountDrafts, setAmountDrafts] = useState({});
   const [showCostGroupModal, setShowCostGroupModal] = useState(false);
   const [costGroupModalView, setCostGroupModalView] = useState("summary");
-  const [newReceiptAccountId, setNewReceiptAccountId] = useState(defaultFamilyAccount.id);
+  const [showCostCenterModal, setShowCostCenterModal] = useState(false);
+  const [costCenterDrafts, setCostCenterDrafts] = useState({});
+  const [newCostCenter, setNewCostCenter] = useState({ name: "", color: "#18b6a3", sort_order: 100 });
+  const [newReceiptCostCenterId, setNewReceiptCostCenterId] = useState(null); // Kostenträger (wer trägt die Kosten)
   const [authEmail, setAuthEmail] = useState(() => {
     if (typeof window === "undefined") return "";
     return window.localStorage.getItem(AUTH_EMAIL_STORAGE_KEY) || "";
@@ -414,12 +433,54 @@ function App() {
     accountType: "person",
     sortOrder: 100,
   });
+  const [hideSettlementReceipts, setHideSettlementReceipts] = useState(false);
+  const [receiptSearchText, setReceiptSearchText] = useState("");
+  const [receiptMonthFilter, setReceiptMonthFilter] = useState("current");
   const exchangeRateCache = useRef(new Map());
   const repairedItemIds = useRef(new Set());
 
   const magicLinkCooldownMsLeft = Math.max(0, Number(magicLinkCooldownUntil || 0) - magicLinkNow);
   const magicLinkCooldownSeconds = Math.ceil(magicLinkCooldownMsLeft / 1000);
   const magicLinkBlocked = magicLinkCooldownSeconds > 0;
+
+  // Filtered receipts based on filters
+  const filteredReceipts = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    return receipts.filter((receipt) => {
+      // Filter: Hide settlement receipts
+      if (hideSettlementReceipts && receipt.merchant === "Ausgleichszahlung") {
+        return false;
+      }
+
+      // Filter: Current month only
+      if (receiptMonthFilter === "current") {
+        const receiptDate = parseReceiptDate(receipt);
+        if (receiptDate) {
+          if (receiptDate.getFullYear() !== currentYear || receiptDate.getMonth() !== currentMonth) {
+            return false;
+          }
+        }
+      }
+
+      // Filter: Search text
+      if (receiptSearchText.trim()) {
+        const searchLower = receiptSearchText.toLowerCase();
+        const merchantMatch = (receipt.merchant || "").toLowerCase().includes(searchLower);
+        const dateMatch = (receipt.receipt_date || "").includes(receiptSearchText);
+        const itemsMatch = (receipt.receipt_items || []).some((item) =>
+          (item.description || "").toLowerCase().includes(searchLower)
+        );
+        if (!merchantMatch && !dateMatch && !itemsMatch) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [receipts, hideSettlementReceipts, receiptMonthFilter, receiptSearchText]);
 
   useEffect(() => {
     if (!magicLinkBlocked || typeof window === "undefined") return undefined;
@@ -566,8 +627,51 @@ function App() {
           total,
         };
       })
-      .sort((a, b) => b.total - a.total);
+      .sort((a, b) => {
+        const accountA = accountById.get(a.id) || (a.id === defaultFamilyAccount.id ? defaultFamilyAccount : null);
+        const accountB = accountById.get(b.id) || (b.id === defaultFamilyAccount.id ? defaultFamilyAccount : null);
+        const sortA = accountA?.sort_order ?? 999;
+        const sortB = accountB?.sort_order ?? 999;
+        return sortA - sortB;
+      });
   }, [receipts, familyAccounts, itemAllocations]);
+
+  // Totals by Cost Centers (Kostenträger) - new system using assigned_cost_center_id
+  const costCenterTotals = useMemo(() => {
+    const costCenterById = new Map(costCenters.map((cc) => [cc.id, cc]));
+    const totals = new Map();
+
+    for (const receipt of receipts) {
+      for (const item of receipt.receipt_items || []) {
+        if (item.is_ignored === true) continue;
+        const itemAmount = Number(item.amount || 0);
+        
+        // Use assigned_cost_center_id if available
+        if (item.assigned_cost_center_id) {
+          const old = totals.get(item.assigned_cost_center_id) || 0;
+          totals.set(item.assigned_cost_center_id, old + itemAmount);
+        }
+      }
+    }
+
+    return Array.from(totals.entries())
+      .map(([costCenterId, total]) => {
+        const costCenter = costCenterById.get(costCenterId);
+        return {
+          id: costCenterId,
+          name: costCenter?.name || "Unbekannter Kostenträger",
+          color: costCenter?.color || "#456279",
+          total,
+        };
+      })
+      .sort((a, b) => {
+        const ccA = costCenterById.get(a.id);
+        const ccB = costCenterById.get(b.id);
+        const sortA = ccA?.sort_order ?? 999;
+        const sortB = ccB?.sort_order ?? 999;
+        return sortA - sortB;
+      });
+  }, [receipts, costCenters]);
 
   const accountDetails = useMemo(() => {
     const accounts = familyAccounts.length ? familyAccounts : [defaultFamilyAccount];
@@ -655,7 +759,18 @@ function App() {
     return { rows, overall };
   }, [receipts, familyAccounts, itemAllocations]);
 
-  const accountOptions = useMemo(() => {
+  // Cost Centers (Kostenträger - wer trägt die Kosten?)
+  const costCenterOptions = useMemo(() => {
+    let next = [...costCenters];
+    if (!next.length && costCenters.length === 0) {
+      // Fallback: if costCenters not loaded, use empty
+      next = [];
+    }
+    return next.sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999));
+  }, [costCenters]);
+
+  // Payment Accounts (Zahlungskonten - wer hat bezahlt?)
+  const paymentAccountOptions = useMemo(() => {
     const next = [...familyAccounts];
     const hasFamily = next.some((x) => x.account_type === "family");
     if (!hasFamily) {
@@ -664,13 +779,10 @@ function App() {
     return next;
   }, [familyAccounts]);
 
-  const selectedUploadAccount = useMemo(() => {
-    const account = accountOptions.find((account) => account.id === newReceiptAccountId) || defaultFamilyAccount;
-    return {
-      ...account,
-      color: account.color || defaultFamilyAccount.color,
-    };
-  }, [accountOptions, newReceiptAccountId]);
+  const selectedUploadCostCenter = useMemo(() => {
+    if (!newReceiptCostCenterId) return null;
+    return costCenterOptions.find((cc) => cc.id === newReceiptCostCenterId) || null;
+  }, [costCenterOptions, newReceiptCostCenterId]);
 
   const primaryAccountByItemId = useMemo(() => {
     const map = new Map();
@@ -685,6 +797,18 @@ function App() {
 
     return map;
   }, [itemAllocations]);
+
+  const assignedCostCenterByItemId = useMemo(() => {
+    const map = new Map();
+    for (const receipt of receipts) {
+      for (const item of (receipt.receipt_items || [])) {
+        if (item.assigned_cost_center_id) {
+          map.set(item.id, item.assigned_cost_center_id);
+        }
+      }
+    }
+    return map;
+  }, [receipts]);
 
   const hasSetup = isSupabaseConfigured && householdId;
   const isApproved = approvalStatus === "approved";
@@ -911,7 +1035,34 @@ function App() {
     loadReceipts();
     loadCostGroups();
     loadFamilyAccounts();
+    loadCostCenters();
   }, [canUseApp]);
+
+  // Sync colors from payment accounts to cost centers
+  useEffect(() => {
+    if (costCenters.length === 0 || familyAccounts.length === 0) return;
+    
+    const updatedDrafts = { ...costCenterDrafts };
+    const colorMap = {};
+    
+    // Map original names to colors from family accounts
+    familyAccounts.forEach(acc => {
+      if (acc.name.includes("Familie")) colorMap["Familie"] = acc.color;
+      if (acc.name.includes("Nicole")) colorMap["Nicole"] = acc.color;
+      if (acc.name.includes("Stefan")) colorMap["Stefan"] = acc.color;
+    });
+    
+    // Update drafts with colors from accounts
+    Object.keys(updatedDrafts).forEach(ccId => {
+      const draft = updatedDrafts[ccId];
+      // Find matching account by name prefix
+      if (draft.name === "Familie" && colorMap["Familie"]) draft.color = colorMap["Familie"];
+      if (draft.name === "Nicole" && colorMap["Nicole"]) draft.color = colorMap["Nicole"];
+      if (draft.name === "Stefan" && colorMap["Stefan"]) draft.color = colorMap["Stefan"];
+    });
+    
+    setCostCenterDrafts(updatedDrafts);
+  }, [familyAccounts]);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase || session?.user) return;
@@ -1295,9 +1446,9 @@ function App() {
     setBusy(true);
     setError("");
 
-    const withAllColumns = "id, merchant, receipt_date, receipt_time, total_amount, currency, image_path, ai_status, created_at, receipt_items(id, description, quantity, amount, original_amount, currency, exchange_rate, category, is_ignored)";
-    const withoutIgnored = "id, merchant, receipt_date, receipt_time, total_amount, currency, image_path, ai_status, created_at, receipt_items(id, description, quantity, amount, original_amount, currency, exchange_rate, category)";
-    const withoutCurrencyColumns = "id, merchant, receipt_date, receipt_time, total_amount, currency, image_path, ai_status, created_at, receipt_items(id, description, quantity, amount, category)";
+    const withAllColumns = "id, merchant, receipt_date, receipt_time, total_amount, currency, image_path, ai_status, created_at, payment_account_id, receipt_items(id, description, quantity, amount, original_amount, currency, exchange_rate, category, is_ignored, assigned_cost_center_id)";
+    const withoutIgnored = "id, merchant, receipt_date, receipt_time, total_amount, currency, image_path, ai_status, created_at, payment_account_id, receipt_items(id, description, quantity, amount, original_amount, currency, exchange_rate, category, assigned_cost_center_id)";
+    const withoutCurrencyColumns = "id, merchant, receipt_date, receipt_time, total_amount, currency, image_path, ai_status, created_at, payment_account_id, receipt_items(id, description, quantity, amount, category, assigned_cost_center_id)";
 
     let response = await supabase
       .from("receipts")
@@ -1340,10 +1491,33 @@ function App() {
       setReceiptItemIgnoreColumnReady(true);
     }
 
-    setReceipts(data || []);
-    if (!selectedReceipt && data?.length) {
-      setSelectedReceipt(data[0].id);
+    // Sort items within each receipt to ensure stable order
+    const receiptsWithSortedItems = (data || []).map(receipt => ({
+      ...receipt,
+      receipt_items: (receipt.receipt_items || []).sort((a, b) => {
+        // Sort by creation order (assuming earlier items in DB are earlier created)
+        // or by index if creation_at is not available
+        return a.id.localeCompare(b.id);
+      })
+    }));
+    
+    setReceipts(receiptsWithSortedItems);
+    if (!selectedReceipt && receiptsWithSortedItems?.length) {
+      setSelectedReceipt(receiptsWithSortedItems[0].id);
     }
+    
+    // Debug receipt items
+    console.log("🔍 DEBUG loadReceipts - Receipt Items:");
+    (data || []).forEach((receipt, i) => {
+      const itemsWithAlloc = receipt.receipt_items?.filter(item => {
+        // Need to check after allocations load, so just show count
+        return item.id;
+      }).length || 0;
+      console.log(`  Receipt ${i} (${receipt.merchant}, ${receipt.payment_account_id.slice(0, 8)}...): ${receipt.receipt_items?.length || 0} items`);
+      receipt.receipt_items?.forEach((item, j) => {
+        console.log(`    Item ${j}: ${item.id.slice(0, 8)}... = ${item.description} (${item.amount} ${item.currency})`);
+      });
+    });
   }
 
   async function loadCostGroups() {
@@ -1383,7 +1557,7 @@ function App() {
   async function loadFamilyAccounts() {
     const { data, error: accountError } = await supabase
       .from("family_accounts")
-      .select("id, name, color, account_type, sort_order")
+      .select("id, name, color, account_type, sort_order, cost_center_id")
       .eq("household_id", householdId)
       .order("account_type", { ascending: true })
       .order("sort_order", { ascending: true })
@@ -1392,7 +1566,7 @@ function App() {
     if (accountError) {
       setFamilyAccounts([]);
       setAccountCatalogReady(false);
-      setAccountCatalogMessage(accountError.message || "Personenkonten-Tabelle ist noch nicht eingerichtet.");
+      setAccountCatalogMessage(accountError.message || "Kostenträger-Tabelle ist noch nicht eingerichtet.");
       return;
     }
 
@@ -1413,6 +1587,120 @@ function App() {
     );
   }
 
+  async function loadCostCenters() {
+    const { data, error: costCenterError } = await supabase
+      .from("cost_centers")
+      .select("id, name, color, sort_order")
+      .eq("household_id", householdId)
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true });
+
+    if (costCenterError) {
+      setCostCenters([]);
+      console.error("Error loading cost_centers:", costCenterError);
+      return;
+    }
+
+    // Transform names to Kostenträger format (Familie -> Familienkosten, etc.)
+    const next = (data || []).map(cc => ({
+      ...cc,
+      name: cc.name === "Familie" ? "Familienkosten" 
+          : cc.name === "Nicole" ? "Nicolekosten"
+          : cc.name === "Stefan" ? "Stefankosten"
+          : cc.name
+    }));
+    setCostCenters(next);
+    
+    // Initialize drafts for editing
+    const drafts = {};
+    (data || []).forEach(cc => {
+      drafts[cc.id] = {
+        name: cc.name,
+        color: cc.color || "#18b6a3",
+        sort_order: cc.sort_order || 100
+      };
+    });
+    setCostCenterDrafts(drafts);
+    console.log("DEBUG: Loaded cost_centers:", next);
+  }
+
+  function updateCostCenterDraft(centerId, field, value) {
+    setCostCenterDrafts((prev) => ({
+      ...prev,
+      [centerId]: { ...prev[centerId], [field]: value }
+    }));
+  }
+
+  async function saveCostCenter(centerId) {
+    if (!centerId) return;
+    if (!costCenterDrafts[centerId]?.name?.trim()) {
+      setError("Kostenträger braucht einen Namen.");
+      return;
+    }
+
+    setBusy(true);
+    const draft = costCenterDrafts[centerId];
+    const { error } = await supabase
+      .from("cost_centers")
+      .update({ name: draft.name, color: draft.color, sort_order: draft.sort_order })
+      .eq("id", centerId)
+      .eq("household_id", householdId);
+
+    setBusy(false);
+    if (error) {
+      setError("Fehler beim Speichern: " + error.message);
+      return;
+    }
+    setSuccess("Kostenträger gespeichert.");
+    await loadCostCenters();
+  }
+
+  async function deleteCostCenter(centerId) {
+    if (!centerId || !window.confirm("Kostenträger wirklich löschen?")) return;
+
+    setBusy(true);
+    const { error } = await supabase
+      .from("cost_centers")
+      .delete()
+      .eq("id", centerId)
+      .eq("household_id", householdId);
+
+    setBusy(false);
+    if (error) {
+      setError("Fehler beim Löschen: " + error.message);
+      return;
+    }
+    setSuccess("Kostenträger gelöscht.");
+    setNewReceiptCostCenterId(null);
+    await loadCostCenters();
+  }
+
+  async function addNewCostCenter() {
+    if (!newCostCenter.name?.trim()) {
+      setError("Bitte Namen für neuen Kostenträger eingeben.");
+      return;
+    }
+
+    setBusy(true);
+    const { error } = await supabase
+      .from("cost_centers")
+      .insert([{
+        household_id: householdId,
+        name: newCostCenter.name,
+        color: newCostCenter.color,
+        sort_order: newCostCenter.sort_order
+      }]);
+
+    setBusy(false);
+    if (error) {
+      setError("Fehler beim Hinzufügen: " + error.message);
+      return;
+    }
+    setSuccess("Kostenträger hinzugefügt.");
+    setNewCostCenter({ name: "", color: "#18b6a3", sort_order: 100 });
+    await loadCostCenters();
+  }
+
   async function loadItemAllocations(itemIds) {
     if (!itemIds?.length) {
       setItemAllocations([]);
@@ -1429,6 +1717,14 @@ function App() {
       return;
     }
 
+    console.log("🔍 DEBUG loadItemAllocations:");
+    console.log("  Requested itemIds:", itemIds);
+    console.log("  Loaded allocations:", data);
+    if (data?.length) {
+      data.forEach((alloc, i) => {
+        console.log(`    Alloc ${i}: receipt_item_id=${alloc.receipt_item_id}`);
+      });
+    }
     setItemAllocations(data || []);
   }
 
@@ -1471,10 +1767,107 @@ function App() {
     return true;
   }
 
+  async function deleteItemAllocation(itemId) {
+    const { error } = await supabase
+      .from("receipt_item_allocations")
+      .delete()
+      .eq("receipt_item_id", itemId);
+
+    if (error) {
+      setError(error.message);
+      return false;
+    }
+
+    setItemAllocations((prev) => prev.filter((x) => x.receipt_item_id !== itemId));
+    setSuccess("Allocation gelöscht.");
+    return true;
+  }
+
+  async function fixWrongAllocations() {
+    // Stefan's 6 items should be allocated to Familienkonto
+    // Item IDs from Stefan's receipts (Bäcker & Netto)
+    const stefanItemIds = [
+      '9e7cc596-fa88-445d-8498-26d820adee1c', // KREPPEL
+      'c83fea1e-4534-4ea7-9059-b93adea19fdd', // Pflaumenkreppel
+      '30afd55b-4412-46d0-984b-8ee0d517430d', // Eierlikörkreppel
+      'a80102fc-c53b-493e-8948-35533d1663b4', // Kreppel mit Nutella
+      'c2f94946-3c88-431d-8c18-3f4c77813fa8', // Vanillekreppel
+      'e2560560-e60a-41f8-b285-87b0bcd12af0', // Papiertasche
+      '60ad4196-e11e-462b-9066-19c5a4db8279', // Favora Topa
+      '83066953-9efe-43b9-a989-daaa3a614df7', // GL H-Milch
+      '4aa55256-5626-49e4-b0ff-f25d63be82b7', // BO-Laugenbreze
+    ];
+    
+    const stefanAmounts = {
+      '9e7cc596-fa88-445d-8498-26d820adee1c': 5.75,
+      'c83fea1e-4534-4ea7-9059-b93adea19fdd': 2.8,
+      '30afd55b-4412-46d0-984b-8ee0d517430d': 4.8,
+      'a80102fc-c53b-493e-8948-35533d1663b4': 5.25,
+      'c2f94946-3c88-431d-8c18-3f4c77813fa8': 3.2,
+      'e2560560-e60a-41f8-b285-87b0bcd12af0': 0.2,
+      '60ad4196-e11e-462b-9066-19c5a4db8279': 4.95,
+      '83066953-9efe-43b9-a989-daaa3a614df7': 2.85,
+      '4aa55256-5626-49e4-b0ff-f25d63be82b7': 0.39,
+    };
+    
+    // First delete all existing allocations
+    const { error: deleteError } = await supabase
+      .from("receipt_item_allocations")
+      .delete()
+      .gt("amount", -1); // Delete all rows
+    
+    if (deleteError) {
+      console.error("Delete error:", deleteError);
+    }
+    
+    // Then create correct allocations: Stefan items → Familienkonto
+    const familienkontoId = defaultFamilyAccount.id;
+    const allocationRows = stefanItemIds.map((itemId) => ({
+      receipt_item_id: itemId,
+      account_id: familienkontoId,
+      amount: stefanAmounts[itemId] || 0,
+    }));
+    
+    const { error: insertError } = await supabase
+      .from("receipt_item_allocations")
+      .insert(allocationRows);
+    
+    if (insertError) {
+      setError(`Fehler beim Erstellen von Allocations: ${insertError.message}`);
+      return;
+    }
+    
+    setSuccess("✓ Allocations repariert: Stefans Items gehen zu Familienkonto!");
+    await loadItemAllocations(receipts.flatMap((r) => (r.receipt_items || []).map((i) => i.id)).filter(Boolean));
+  }
+
+  async function assignItemToCostCenter(item, costCenterId) {
+    try {
+      const patchData = costCenterId 
+        ? { assigned_cost_center_id: costCenterId }
+        : { assigned_cost_center_id: null };
+      
+      console.log("Assigning cost center:", { itemId: item.id, costCenterId, patchData });
+      
+      await patchItem(item.id, patchData);
+      setSuccess("Kostenträger aktualisiert.");
+    } catch (err) {
+      const errMsg = String(err?.message || err);
+      console.error("assignItemToCostCenter error:", err, errMsg);
+      
+      if (errMsg.includes("assigned_cost_center_id") || errMsg.includes("does not exist")) {
+        setShowSetupModal(true);
+        setError("⚠️ Die Kostenträger-Spalte muss erst in der Datenbank erstellt werden.");
+      } else {
+        setError(`Fehler beim Speichern: ${errMsg}`);
+      }
+    }
+  }
+
   async function assignItemToAccount(item, accountId) {
     const ok = await setSingleItemAllocation(item.id, accountId, Number(item.amount || 0));
     if (!ok) return;
-    setSuccess("Personenkonto aktualisiert.");
+    setSuccess("Kostenträger aktualisiert.");
   }
 
   function updateCostGroupDraft(groupId, key, value) {
@@ -1591,7 +1984,7 @@ function App() {
   async function saveFamilyAccount(accountId) {
     const draft = accountDrafts[accountId];
     if (!draft?.name?.trim()) {
-      setError("Personenkonto braucht einen Namen.");
+      setError("Kostenträger braucht einen Namen.");
       return;
     }
 
@@ -1616,7 +2009,7 @@ function App() {
       return;
     }
 
-    setSuccess("Personenkonto gespeichert.");
+    setSuccess("Kostenträger gespeichert.");
     await loadFamilyAccounts();
   }
 
@@ -1643,14 +2036,14 @@ function App() {
       return;
     }
 
-    setSuccess("Personenkonto gelöscht.");
+    setSuccess("Kostenträger gelöscht.");
     await loadFamilyAccounts();
     await loadItemAllocations(receipts.flatMap((r) => (r.receipt_items || []).map((i) => i.id)).filter(Boolean));
   }
 
   async function addFamilyAccount() {
     if (!newAccount.name.trim()) {
-      setError("Bitte Name für das neue Personenkonto eingeben.");
+      setError("Bitte Name eingeben.");
       return;
     }
 
@@ -1678,7 +2071,7 @@ function App() {
       accountType: "person",
       sortOrder: 100,
     });
-    setSuccess("Personenkonto hinzugefügt.");
+    setSuccess("Kostenträger hinzugefügt.");
     await loadFamilyAccounts();
   }
 
@@ -1699,9 +2092,18 @@ function App() {
     }
 
     const parsed = aiResult.data || {};
+    console.error("🚨🚨🚨 PARSED DATA 🚨🚨🚨", { merchant: parsed.merchant, itemCount: parsed.items?.length });
+    
     const rawCurrency = normalizeCurrencyCode(parsed.currency || "EUR");
     const exchangeRate = await getExchangeRateToEur(rawCurrency);
     const items = Array.isArray(parsed.items) ? parsed.items : [];
+    
+    console.error("🚨 MERCHANT CHECK - Merchant: '" + parsed.merchant + "' activeCostGroups:", activeCostGroups().length);
+    
+    // Determine cost group based on merchant name
+    const merchantCategory = inferCostGroupName(parsed.merchant || "", activeCostGroups());
+    console.error("🚨 MERCHANT CATEGORY RESULT: '" + merchantCategory + "'");
+    
     const convertedItems = items.map((item) => {
       const originalAmount = roundMoney(item.amount || 0);
       const eurAmount = roundMoney(originalAmount * exchangeRate);
@@ -1713,7 +2115,7 @@ function App() {
         amount: eurAmount,
         currency: rawCurrency,
         exchange_rate: exchangeRate,
-        category: inferCostGroupName(item.description, activeCostGroups()),
+        category: merchantCategory || inferCostGroupName(item.description, activeCostGroups()),
       };
     });
 
@@ -1844,7 +2246,8 @@ function App() {
 
     const receiptId = initialReceipt.data.id;
 
-    const result = await analyzeReceipt(receiptId, storagePath, { defaultAccountId: newReceiptAccountId });
+    // Note: For now, we don't pass defaultCostCenterId to OCR analysis
+    const result = await analyzeReceipt(receiptId, storagePath);
     if (!result.ok) {
       setBusy(false);
       setError(result.message);
@@ -1958,8 +2361,8 @@ function App() {
     }
 
     const insertedItem = insertResponse.data?.[0];
-    if (insertedItem?.id && manualDraft.accountId && manualDraft.accountId !== defaultFamilyAccount.id) {
-      await setSingleItemAllocation(insertedItem.id, manualDraft.accountId, amount);
+    if (insertedItem?.id && manualDraft.accountId) {
+      await assignItemToCostCenter(insertedItem, manualDraft.accountId);
     }
 
     setManualDraft(emptyDraft);
@@ -1969,13 +2372,29 @@ function App() {
 
   async function patchItem(itemId, patch) {
     const receiptId = receipts.find((receipt) => (receipt.receipt_items || []).some((item) => item.id === itemId))?.id;
-    const { error: updateError } = await supabase
+    const { data, error: updateError } = await supabase
       .from("receipt_items")
       .update(patch)
-      .eq("id", itemId);
+      .eq("id", itemId)
+      .select();
 
     if (updateError) {
-      setError(updateError.message);
+      const errMsg = String(updateError?.message || updateError);
+      console.error("patchItem error:", updateError, errMsg);
+      
+      // Check if this is a column-missing error
+      if (errMsg.includes("assigned_cost_center_id") || errMsg.includes("does not exist")) {
+        setShowSetupBanner(true);  // Show setup banner
+        setError("⚠️ Die Kostenträger-Spalte muss erst in der Datenbank erstellt werden.");
+      } else {
+        setError(`Update-Fehler: ${errMsg}`);
+      }
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      setError("Keine Zeilen aktualisiert - möglicherweise existiert das Item nicht");
+      console.warn("patchItem: No rows affected", { itemId, patch });
       return;
     }
 
@@ -1984,6 +2403,25 @@ function App() {
     }
 
     await loadReceipts();
+  }
+
+  async function patchReceipt(receiptId, patch) {
+    setBusy(true);
+    setError("");
+
+    const { error: updateError } = await supabase
+      .from("receipts")
+      .update(patch)
+      .eq("id", receiptId);
+
+    if (updateError) {
+      setError(updateError.message);
+      setBusy(false);
+      return;
+    }
+
+    await loadReceipts();
+    setBusy(false);
   }
 
   async function toggleIgnoreItem(item) {
@@ -2119,8 +2557,12 @@ function App() {
     setError("");
     setSuccess("");
 
+    // First check merchant name, then fall back to item descriptions
+    const merchantCategory = inferCostGroupName(receipt.merchant || "", groups);
+    console.log(`[autoAssignCategories] Merchant: "${receipt.merchant}" → Category: "${merchantCategory}"`);
+
     for (const item of items) {
-      const category = inferCostGroupName(item.description, groups);
+      const category = merchantCategory || inferCostGroupName(item.description, groups);
       const { error: updateError } = await supabase
         .from("receipt_items")
         .update({ category })
@@ -2135,6 +2577,156 @@ function App() {
 
     setBusy(false);
     setSuccess("Kostengruppen wurden automatisch zugeordnet.");
+    await loadReceipts();
+  }
+
+  async function createSettlementReceipt(debtorAccount, creditorAccount, amount) {
+    if (!supabase || !debtorAccount?.id || !creditorAccount?.id) return;
+    
+    setBusy(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+
+      // Create receipt for debtor (positive amount - money out)
+      const debtorReceiptInsert = await supabase
+        .from("receipts")
+        .insert({
+          household_id: householdId,
+          merchant: "Ausgleichszahlung",
+          receipt_date: today,
+          receipt_time: null,
+          total_amount: roundMoney(amount),
+          currency: "EUR",
+          ai_status: "done",
+          payment_account_id: debtorAccount.id,
+        })
+        .select("id")
+        .single();
+
+      if (debtorReceiptInsert.error) {
+        setBusy(false);
+        setError(`Beleg-Erstellung (Debtor) fehlgeschlagen: ${debtorReceiptInsert.error.message}`);
+        return;
+      }
+
+      const debtorReceiptId = debtorReceiptInsert.data.id;
+
+      // Create item for debtor receipt
+      const debtorItemInsert = await supabase
+        .from("receipt_items")
+        .insert({
+          receipt_id: debtorReceiptId,
+          description: `${debtorAccount.name} an ${creditorAccount.name}`,
+          quantity: 1,
+          amount: roundMoney(amount),
+          category: null,
+          assigned_cost_center_id: null,
+        })
+        .select("id")
+        .single();
+
+      if (debtorItemInsert.error) {
+        setBusy(false);
+        setError(`Position-Erstellung (Debtor) fehlgeschlagen: ${debtorItemInsert.error.message}`);
+        return;
+      }
+
+      // Create receipt for creditor (negative amount - money in)
+      const creditorReceiptInsert = await supabase
+        .from("receipts")
+        .insert({
+          household_id: householdId,
+          merchant: "Ausgleichszahlung",
+          receipt_date: today,
+          receipt_time: null,
+          total_amount: roundMoney(-amount),
+          currency: "EUR",
+          ai_status: "done",
+          payment_account_id: creditorAccount.id,
+        })
+        .select("id")
+        .single();
+
+      if (creditorReceiptInsert.error) {
+        setBusy(false);
+        setError(`Beleg-Erstellung (Creditor) fehlgeschlagen: ${creditorReceiptInsert.error.message}`);
+        return;
+      }
+
+      const creditorReceiptId = creditorReceiptInsert.data.id;
+
+      // Create item for creditor receipt
+      const creditorItemInsert = await supabase
+        .from("receipt_items")
+        .insert({
+          receipt_id: creditorReceiptId,
+          description: `${debtorAccount.name} an ${creditorAccount.name}`,
+          quantity: 1,
+          amount: roundMoney(-amount),
+          category: null,
+          assigned_cost_center_id: null,
+        })
+        .select("id")
+        .single();
+
+      if (creditorItemInsert.error) {
+        setBusy(false);
+        setError(`Position-Erstellung (Creditor) fehlgeschlagen: ${creditorItemInsert.error.message}`);
+        return;
+      }
+
+      setBusy(false);
+      setSuccess(`✓ Ausgleichszahlung "${debtorAccount.name} → ${creditorAccount.name}: ${euro.format(amount)}" erstellt!`);
+      await loadReceipts();
+      setSelectedReceipt(debtorReceiptId);
+    } catch (err) {
+      setBusy(false);
+      setError(`Fehler: ${err.message || err}`);
+    }
+  }
+
+  async function deleteReceiptItem(item) {
+    if (!item?.id) return;
+    if (!window.confirm("Position wirklich löschen?")) return;
+
+    setBusy(true);
+    setError("");
+
+    const receiptId = receipts.find((receipt) => (receipt.receipt_items || []).some((row) => row.id === item.id))?.id;
+
+    // Delete allocations first
+    const { error: allocError } = await supabase
+      .from("receipt_item_allocations")
+      .delete()
+      .eq("receipt_item_id", item.id);
+
+    if (allocError) {
+      setBusy(false);
+      setError(`Fehler beim Löschen von Zuordnungen: ${allocError.message}`);
+      return;
+    }
+
+    // Then delete the item
+    const { error: itemError } = await supabase
+      .from("receipt_items")
+      .delete()
+      .eq("id", item.id);
+
+    if (itemError) {
+      setBusy(false);
+      setError(`Fehler beim Löschen der Position: ${itemError.message}`);
+      return;
+    }
+
+    if (receiptId) {
+      await recalculateReceiptTotal(receiptId);
+    }
+
+    setBusy(false);
+    setSuccess("Position gelöscht.");
     await loadReceipts();
   }
 
@@ -2292,6 +2884,35 @@ function App() {
         </div>
       </header>
 
+      {showSetupBanner && (
+        <section className="panel setup-panel" style={{ background: "#fff3cd", borderColor: "#ffc107", borderLeft: "4px solid #ffc107" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div style={{ flex: 1 }}>
+              <h2 style={{ color: "#856404", margin: "0 0 12px 0" }}>🚀 Setup erforderlich!</h2>
+              <p style={{ color: "#856404", margin: "0 0 12px 0" }}>
+                <strong>Die Kostenträger-Spalte existiert NICHT in der Datenbank!</strong> Deswegen werden Ihre Kostenträger-Auswahlen nicht gespeichert.
+              </p>
+              <p style={{ color: "#856404", margin: "0 0 12px 0" }}>
+                Öffnen Sie diese Setup-Seite und führen Sie die SQL aus:
+              </p>
+              <button className="btn" onClick={() => { window.open('/setup-assigned-cost-center.html', '_blank'); }}>
+                📋 Setup-Anleitung öffnen
+              </button>
+              <p style={{ color: "#856404", fontSize: "12px", margin: "8px 0 0 0" }}>
+                Nach der Setup können Sie Kostenträger auswählen und speichern.
+              </p>
+            </div>
+            <button 
+              className="btn secondary mini-btn" 
+              onClick={() => setShowSetupBanner(false)}
+              style={{ marginLeft: "16px", whiteSpace: "nowrap" }}
+            >
+              Ausblenden
+            </button>
+          </div>
+        </section>
+      )}
+
       {!hasSetup && (
         <section className="panel setup-panel">
           <h2>Konfiguration fehlt</h2>
@@ -2327,15 +2948,21 @@ function App() {
 
       <section className="workflow-stack">
         <article className="panel">
-          <h2>1. Personenkonto</h2>
+          <div className="section-header-with-button">
+            <h2>1. Kosten für (Kostenträger)</h2>
+            <button className="btn secondary" onClick={() => setShowCostCenterModal(true)}>
+              Kostenträger bearbeiten
+            </button>
+          </div>
           <div className="upload-account-row">
-            <div className="color-select-wrapper" style={buildColorInputStyle(selectedUploadAccount?.color)}>
+            <div className={`color-select-wrapper ${!newReceiptCostCenterId ? 'missing-required' : ''}`} style={!newReceiptCostCenterId ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle(selectedUploadCostCenter?.color)}>
               <select
-                value={newReceiptAccountId}
-                onChange={(e) => setNewReceiptAccountId(e.target.value)}
+                value={newReceiptCostCenterId || ""}
+                onChange={(e) => setNewReceiptCostCenterId(e.target.value || null)}
               >
-                {accountOptions.map((account) => (
-                  <option key={account.id} value={account.id}>{account.name}</option>
+                <option value="">-- Wähle Kostenträger --</option>
+                {costCenterOptions.map((costCenter) => (
+                  <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
                 ))}
               </select>
             </div>
@@ -2343,7 +2970,41 @@ function App() {
         </article>
 
         <article className="panel">
-          <h2>2. Beleg erfassen</h2>
+          <div className="section-header-with-button">
+            <h2>2. Zahlung von (Zahlungskonto)</h2>
+            {currentReceipt && (
+              <button
+                className="btn secondary"
+                onClick={() => {
+                  setShowCostGroupModal(true);
+                  setCostGroupModalView("accounts");
+                }}
+              >
+                Konten bearbeiten
+              </button>
+            )}
+          </div>
+          {!currentReceipt && <p className="hint">Bitte links einen Beleg auswählen.</p>}
+          {currentReceipt && (
+            <div>
+              <div className={`color-select-wrapper ${!currentReceipt.payment_account_id ? 'missing-required' : ''}`} style={buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color)}>
+                <select
+                  value={currentReceipt.payment_account_id || ""}
+                  onChange={(e) => patchReceipt(currentReceipt.id, { payment_account_id: e.target.value || null })}
+                  disabled={busy}
+                >
+                  <option value="">-- Wähle Zahlungskonto --</option>
+                  {paymentAccountOptions.map((account) => (
+                    <option key={account.id} value={account.id}>{account.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+        </article>
+
+        <article className="panel">
+          <h2>3. Beleg erfassen</h2>
           <div className="file-picker">
             <input
               id="receipt-file"
@@ -2372,9 +3033,9 @@ function App() {
               <h3>
                 {costGroupModalView === "summary" && "Kostenübersicht"}
                 {costGroupModalView === "groupDetails" && "Detaillierte Übersicht nach Kostengruppen"}
-                {costGroupModalView === "accountDetails" && "Detaillierte Übersicht nach Personenkonten"}
+                {costGroupModalView === "accountDetails" && "Detaillierte Übersicht nach Kostenträgern"}
                 {costGroupModalView === "edit" && "Kostengruppen bearbeiten"}
-                {costGroupModalView === "accounts" && "Personenkonten bearbeiten"}
+                {costGroupModalView === "accounts" && "Kostenträger bearbeiten"}
               </h3>
               <button className="btn secondary" onClick={() => setShowCostGroupModal(false)}>Schließen</button>
             </div>
@@ -2411,11 +3072,11 @@ function App() {
                     setCostGroupModalView("accountDetails");
                   }
                 }}>
-                  <h3>Kostenübersicht nach Personenkonten</h3>
-                  {!accountTotals.length && <p className="hint">Noch keine Kosten vorhanden.</p>}
-                  {!!accountTotals.length && (
+                  <h3>Kostenübersicht nach Kostenträgern</h3>
+                  {!costCenterTotals.length && <p className="hint">Noch keine Kosten vorhanden.</p>}
+                  {!!costCenterTotals.length && (
                     <div className="cost-group-summary-list">
-                      {accountTotals.map((row) => (
+                      {costCenterTotals.map((row) => (
                         <div className="cost-group-summary-row" key={row.id} style={buildSummaryRowStyle(row.color)}>
                           <span className="cost-group-name">
                             <span className="cost-group-dot" style={{ backgroundColor: row.color }} />
@@ -2431,7 +3092,6 @@ function App() {
 
                 <div className="cost-group-summary-actions">
                   <button className="btn" onClick={() => setCostGroupModalView("edit")}>Kostengruppen bearbeiten</button>
-                  <button className="btn secondary" onClick={() => setCostGroupModalView("accounts")}>Personenkonten bearbeiten</button>
                 </div>
               </>
             )}
@@ -2604,12 +3264,12 @@ function App() {
 
                 {!accountCatalogReady && (
                   <p className="hint error">
-                    Personenkonten-Tabelle noch nicht verfügbar: {accountCatalogMessage}
+                    Kostenträger-Tabelle noch nicht verfügbar: {accountCatalogMessage}
                   </p>
                 )}
 
                 {accountCatalogReady && !familyAccounts.length && (
-                  <p className="hint">Noch keine Personenkonten angelegt. Füge unten eines hinzu.</p>
+                  <p className="hint">Noch keine Kostenträger angelegt. Füge unten eines hinzu.</p>
                 )}
 
                 {accountCatalogReady && (
@@ -2672,7 +3332,7 @@ function App() {
                     <input
                       value={newAccount.name}
                       onChange={(e) => setNewAccount((s) => ({ ...s, name: e.target.value }))}
-                      placeholder="Neues Personenkonto"
+                      placeholder="Neuer Kostenträger"
                     />
                     <div className="color-input-wrapper">
                       <input
@@ -2704,12 +3364,158 @@ function App() {
         </div>
       )}
 
+      {showCostCenterModal && (
+        <div className="modal-backdrop" onClick={() => setShowCostCenterModal(false)}>
+          <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Kostenträger bearbeiten</h3>
+              <button className="btn secondary" onClick={() => setShowCostCenterModal(false)}>Schließen</button>
+            </div>
+
+            {costCenters.length === 0 && (
+              <p className="hint">Noch keine Kostenträger angelegt. Füge unten eines hinzu.</p>
+            )}
+
+            {costCenters.length > 0 && (
+              <>
+                <div className="account-edit-head">
+                  <span>Name</span>
+                  <span>Farbe</span>
+                  <span>Sortierung</span>
+                  <span>Aktion</span>
+                  <span>Aktion</span>
+                </div>
+
+                {costCenters.map((center) => {
+                  const cc = costCenters.find(c => c.id === center.id);
+                  if (!cc) return null;
+                  
+                  const draft = costCenterDrafts[center.id] || {
+                    name: cc.name || "",
+                    color: cc.color || "#18b6a3",
+                    sort_order: cc.sort_order || 100
+                  };
+                  
+                  return (
+                    <div className="account-edit-row" key={center.id}>
+                      <input
+                        value={draft.name}
+                        onChange={(e) => updateCostCenterDraft(center.id, "name", e.target.value)}
+                        placeholder="Name"
+                      />
+                      <div className="color-input-wrapper">
+                        <input
+                          type="color"
+                          value={draft.color}
+                          onChange={(e) => updateCostCenterDraft(center.id, "color", e.target.value)}
+                        />
+                      </div>
+                      <input
+                        type="number"
+                        value={draft.sort_order}
+                        onChange={(e) => updateCostCenterDraft(center.id, "sort_order", e.target.value)}
+                        placeholder="Sortierung"
+                      />
+                      <button className="btn secondary" disabled={busy} onClick={() => saveCostCenter(center.id)}>Speichern</button>
+                      <button className="btn secondary" disabled={busy} onClick={() => deleteCostCenter(center.id)}>Löschen</button>
+                    </div>
+                  );
+                })}
+
+                <div className="account-new-row">
+                  <input
+                    value={newCostCenter.name}
+                    onChange={(e) => setNewCostCenter((s) => ({ ...s, name: e.target.value }))}
+                    placeholder="Neuer Kostenträger"
+                  />
+                  <div className="color-input-wrapper">
+                    <input
+                      type="color"
+                      value={newCostCenter.color}
+                      onChange={(e) => setNewCostCenter((s) => ({ ...s, color: e.target.value }))}
+                    />
+                  </div>
+                  <input
+                    type="number"
+                    value={newCostCenter.sort_order}
+                    onChange={(e) => setNewCostCenter((s) => ({ ...s, sort_order: e.target.value }))}
+                    placeholder="Sortierung"
+                  />
+                  <button className="btn" disabled={busy} onClick={addNewCostCenter}>Hinzufügen</button>
+                  <span className="table-action-placeholder" aria-hidden="true" />
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showSetupModal && (
+        <div className="modal-backdrop" onClick={() => setShowSetupModal(false)}>
+          <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>⚠️ Datenbank-Setup erforderlich</h3>
+              <button className="btn secondary" onClick={() => setShowSetupModal(false)}>Schließen</button>
+            </div>
+            <div style={{ padding: "20px 16px" }}>
+              <p style={{ fontSize: "16px", lineHeight: "1.6", marginBottom: "16px" }}>
+                Um Kostenträger bei Positionen auswählen zu können, muss eine neue Spalte in der Datenbank erstellt werden.
+              </p>
+              <p style={{ background: "#f1fbf9", padding: "12px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "14px", fontFamily: "monospace", marginBottom: "16px" }}>
+                <strong>SQL:</strong><br/>
+                ALTER TABLE receipt_items<br/>
+                ADD COLUMN IF NOT EXISTS assigned_cost_center_id uuid<br/>
+                REFERENCES cost_centers(id) ON DELETE SET NULL;
+              </p>
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                <button className="btn" onClick={() => window.open('https://supabase.com/dashboard/project/pfmafymhudbstxwrwtlu/sql/new', '_blank')}>
+                  Supabase SQL-Editor öffnen
+                </button>
+                <button className="btn secondary" onClick={() => window.open('/setup-assigned-cost-center.html', '_blank')}>
+                  Schritt-für-Schritt Anleitung
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {error && <p className="hint error">{error}</p>}
       {success && <p className="hint success">{success}</p>}
 
       <section className="grid two workflow-stack">
         <article className="panel">
-          <h2>3. Belege</h2>
+          <h2>4. Belege</h2>
+          
+          {/* Receipt Filters */}
+          <div style={{ marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
+              <input
+                type="text"
+                placeholder="Beleg suchen..."
+                value={receiptSearchText}
+                onChange={(e) => setReceiptSearchText(e.target.value)}
+                style={{ flex: 1, minWidth: "200px", padding: "6px 10px", border: "1px solid #ccc", borderRadius: "4px" }}
+              />
+              <select
+                value={receiptMonthFilter}
+                onChange={(e) => setReceiptMonthFilter(e.target.value)}
+                style={{ padding: "6px 10px", border: "1px solid #ccc", borderRadius: "4px" }}
+              >
+                <option value="current">Diesen Monat</option>
+                <option value="all">Alle Belege</option>
+              </select>
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap" }}>
+                <input
+                  type="checkbox"
+                  checked={hideSettlementReceipts}
+                  onChange={(e) => setHideSettlementReceipts(e.target.checked)}
+                />
+                Ausgleichszahlungen verbergen
+              </label>
+            </div>
+          </div>
+          
           {currentReceipt && (
             <div className="receipt-actions">
               <button
@@ -2726,6 +3532,19 @@ function App() {
               >
                 {previewBusy ? "Öffne..." : "Beleg ansehen"}
               </button>
+              <div className="color-select-wrapper" style={buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color)}>
+                <select
+                  value={currentReceipt.payment_account_id || ""}
+                  onChange={(e) => patchReceipt(currentReceipt.id, { payment_account_id: e.target.value || null })}
+                  disabled={busy}
+                  title="Zahlungskonto"
+                >
+                  <option value="">-- Zahlungskonto --</option>
+                  {paymentAccountOptions.map((account) => (
+                    <option key={account.id} value={account.id}>{account.name}</option>
+                  ))}
+                </select>
+              </div>
               <button
                 className="btn secondary"
                 disabled={busy}
@@ -2736,7 +3555,7 @@ function App() {
             </div>
           )}
           <div className="receipt-list">
-            {receipts.map((receipt) => (
+            {filteredReceipts.map((receipt) => (
               <button
                 key={receipt.id}
                 className={`receipt-button ${receipt.id === selectedReceipt ? "active" : ""}`}
@@ -2767,18 +3586,22 @@ function App() {
         </article>
 
         <article className="panel">
-          <h2>4. Positionen</h2>
+          <div className="section-header-with-button">
+            <h2>5. Positionen Beleg</h2>
+            <button
+              className="btn secondary"
+              disabled={busy || !currentReceipt?.receipt_items?.length}
+              onClick={() => autoAssignCategories(currentReceipt)}
+            >
+              Kostengruppen zuordnen
+            </button>
+          </div>
           {!currentReceipt && <p className="hint">Bitte links einen Beleg auswählen.</p>}
           {currentReceipt && (
             <>
-              <div className="receipt-actions">
-                <button
-                  className="btn secondary"
-                  disabled={busy || !currentReceipt.receipt_items?.length}
-                  onClick={() => autoAssignCategories(currentReceipt)}
-                >
-                  Kostengruppen zuordnen
-                </button>
+              <div className="receipt-info">
+                <strong>{currentReceipt.merchant || "Unbekannt"}</strong>
+                <small>{formatReceiptDateTime(currentReceipt)}</small>
               </div>
 
               {!receiptItemCurrencyColumnsReady && (
@@ -2788,138 +3611,185 @@ function App() {
               )}
 
               <div className="item-list">
-                <div className="item-head">
-                  <span>Beschreibung</span>
-                  <span>Betrag</span>
-                  <span>Kostengruppe</span>
-                  <span>Personenkonto</span>
-                  {receiptItemIgnoreColumnReady && <span>Aktion</span>}
-                </div>
                 {(currentReceipt.receipt_items || []).map((item) => (
-                  <div className="item-row" key={item.id}>
-                    <input
-                      className="description-input"
-                      value={item.description || ""}
-                      title={item.description || ""}
-                      onChange={(e) => patchItem(item.id, { description: e.target.value })}
-                    />
-                    <div className="amount-cell">
-                      <input
-                        className="amount-input"
-                        type="text"
-                        inputMode="decimal"
-                        value={Object.prototype.hasOwnProperty.call(amountDrafts, item.id) ? amountDrafts[item.id] : formatAmountDE(getItemOriginalAmount(item))}
-                        title={formatConvertedInfo(item)}
-                        onChange={(e) => updateAmountDraft(item.id, e.target.value)}
-                        onBlur={() => commitAmountDraft(item)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.currentTarget.blur();
-                          }
-                        }}
-                      />
-                      <select
-                        className="currency-input"
-                        value={normalizeCurrencyCode(item.currency || "EUR")}
-                        onChange={(e) => updateItemCurrency(item, e.target.value)}
-                        disabled={!receiptItemCurrencyColumnsReady}
-                      >
-                        {CURRENCY_OPTIONS.map((currency) => (
-                          <option key={currency} value={currency}>{CURRENCY_SYMBOL[currency] ?? currency}</option>
-                        ))}
-                      </select>
-                      {!receiptItemCurrencyColumnsReady && <span className="fallback-badge">€</span>}
+                  <div key={item.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px", paddingBottom: "8px", borderBottom: "1px solid rgba(0,0,0,0.05)", minWidth: 0 }}>
+                    {/* Left column: Description and Amount */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", minWidth: 0 }}>
+                      {/* Row 1: Description with delete button */}
+                      <div style={{ display: "flex", gap: "4px", alignItems: "center", minWidth: 0 }}>
+                        <input
+                          className="description-input"
+                          value={item.description || ""}
+                          title={item.description || ""}
+                          onChange={(e) => patchItem(item.id, { description: e.target.value })}
+                          style={{ flex: 1, minWidth: 0, minHeight: "32px" }}
+                        />
+                        <button
+                          className="btn secondary mini-btn"
+                          disabled={busy}
+                          onClick={() => deleteReceiptItem(item)}
+                          title="Position löschen"
+                          style={{ padding: "4px 6px", minWidth: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                      
+                      {/* Row 2: Amount with currency */}
+                      <div className="amount-cell" style={{ display: "flex", gap: "4px", minHeight: "32px", minWidth: 0 }}>
+                        <input
+                          className="amount-input"
+                          type="text"
+                          inputMode="decimal"
+                          value={Object.prototype.hasOwnProperty.call(amountDrafts, item.id) ? amountDrafts[item.id] : formatAmountDE(getItemOriginalAmount(item))}
+                          title={formatConvertedInfo(item)}
+                          onChange={(e) => updateAmountDraft(item.id, e.target.value)}
+                          onBlur={() => commitAmountDraft(item)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.currentTarget.blur();
+                            }
+                          }}
+                          style={{ width: "100px", minWidth: 0 }}
+                        />
+                        <select
+                          className="currency-input"
+                          value={normalizeCurrencyCode(item.currency || "EUR")}
+                          onChange={(e) => updateItemCurrency(item, e.target.value)}
+                          disabled={!receiptItemCurrencyColumnsReady}
+                          style={{ width: "70px", minWidth: 0 }}
+                        >
+                          {CURRENCY_OPTIONS.map((currency) => (
+                            <option key={currency} value={currency}>{CURRENCY_SYMBOL[currency] ?? currency}</option>
+                          ))}
+                        </select>
+                        {!receiptItemCurrencyColumnsReady && <span className="fallback-badge">€</span>}
+                      </div>
                     </div>
-                    <select
-                      className="category-input cost-group-input"
-                      value={item.category || ""}
-                      onChange={(e) => patchItem(item.id, { category: e.target.value || null })}
-                    >
-                      <option value="">Keine Kostengruppe</option>
-                      {activeCostGroups().map((group) => (
-                        <option key={group.id || group.name} value={group.name}>{group.name}</option>
-                      ))}
-                    </select>
-                    <select
-                      className="category-input account-input"
-                      value={primaryAccountByItemId.get(item.id)?.accountId || defaultFamilyAccount.id}
-                      onChange={(e) => assignItemToAccount(item, e.target.value)}
-                      disabled={!accountCatalogReady}
-                    >
-                      {accountOptions.map((account) => (
-                        <option key={account.id} value={account.id}>{account.name}</option>
-                      ))}
-                    </select>
-                    <button
-                      className={`btn mini-btn ${item.is_ignored ? 'secondary' : ''}`}
-                      title={item.is_ignored ? 'Diese Position wird nicht in der Kostenübersicht berücksichtigt' : 'Position ignorieren'}
-                      onClick={() => toggleIgnoreItem(item)}
-                      disabled={busy || !receiptItemIgnoreColumnReady}
-                      style={!receiptItemIgnoreColumnReady ? { display: 'none' } : undefined}
-                    >
-                      {item.is_ignored ? '✓ Ignoriert' : 'Ignorieren'}
-                    </button>
+                    
+                    {/* Right column: Cost Group and Cost Center */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", minWidth: 0 }}>
+                      {/* Row 1: Cost Group */}
+                      <div className="color-select-wrapper" style={{...buildColorInputStyle(
+                        activeCostGroups().find(g => g.name === item.category)?.color
+                      ), minHeight: "32px", minWidth: 0}}>
+                        <select
+                          className="category-input cost-group-input"
+                          value={item.category || ""}
+                          onChange={(e) => patchItem(item.id, { category: e.target.value || null })}
+                        >
+                          <option value="">Keine Kostengruppe</option>
+                          {activeCostGroups().map((group) => (
+                            <option key={group.id || group.name} value={group.name}>{group.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      {/* Row 2: Cost Center */}
+                      <div className="color-select-wrapper" style={{...buildColorInputStyle(
+                        costCenterOptions.find(cc => cc.id === assignedCostCenterByItemId.get(item.id))?.color
+                      ), minHeight: "32px", minWidth: 0}}>
+                        <select
+                          className={`category-input account-input ${!assignedCostCenterByItemId.get(item.id) ? 'missing-required' : ''}`}
+                          value={assignedCostCenterByItemId.get(item.id) || ""}
+                          onChange={(e) => assignItemToCostCenter(item, e.target.value || null)}
+                          disabled={!costCenterOptions.length}
+                          title="Kostenträger"
+                        >
+                          <option value="">-- Wähle Kostenträger --</option>
+                          {costCenterOptions.map((costCenter) => (
+                            <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
 
               {!accountCatalogReady && (
                 <p className="hint error">
-                  Personenkonten-Tabelle noch nicht verfügbar: {accountCatalogMessage}
+                  Kostenträger-Tabelle noch nicht verfügbar: {accountCatalogMessage}
                 </p>
               )}
 
               <div className="manual-box">
                 <h3>Position manuell hinzufügen</h3>
-                <div className="item-row">
-                  <input
-                    className="description-input"
-                    placeholder="Beschreibung"
-                    value={manualDraft.description}
-                    onChange={(e) => setManualDraft((s) => ({ ...s, description: e.target.value }))}
-                  />
-                  <div className="amount-cell">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px", paddingBottom: "8px", borderBottom: "1px solid rgba(0,0,0,0.05)", minWidth: 0 }}>
+                  {/* Left column */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1, minWidth: 0 }}>
+                    {/* Row 1: Description */}
                     <input
-                      className="amount-input"
-                      type="number"
-                      step="0.01"
-                      placeholder="Betrag"
-                      value={manualDraft.amount}
-                      onChange={(e) => setManualDraft((s) => ({ ...s, amount: e.target.value }))}
+                      className="description-input"
+                      placeholder="Beschreibung"
+                      value={manualDraft.description}
+                      onChange={(e) => setManualDraft((s) => ({ ...s, description: e.target.value }))}
+                      style={{ minHeight: "32px", flex: 1, minWidth: 0 }}
                     />
-                    <select
-                      className="currency-input"
-                      value={manualDraft.currency || "EUR"}
-                      onChange={(e) => setManualDraft((s) => ({ ...s, currency: e.target.value }))}
-                      disabled={!receiptItemCurrencyColumnsReady}
-                    >
-                      {CURRENCY_OPTIONS.map((currency) => (
-                        <option key={currency} value={currency}>{CURRENCY_SYMBOL[currency] ?? currency}</option>
-                      ))}
-                    </select>
+                    
+                    {/* Row 2: Amount with currency */}
+                    <div className="amount-cell" style={{ display: "flex", gap: "4px", minHeight: "32px", flex: 1, minWidth: 0 }}>
+                      <input
+                        className="amount-input"
+                        type="number"
+                        step="0.01"
+                        placeholder="Betrag"
+                        value={manualDraft.amount}
+                        onChange={(e) => setManualDraft((s) => ({ ...s, amount: e.target.value }))}
+                        style={{ width: "100px", minWidth: 0 }}
+                      />
+                      <select
+                        className="currency-input"
+                        value={manualDraft.currency || "EUR"}
+                        onChange={(e) => setManualDraft((s) => ({ ...s, currency: e.target.value }))}
+                        disabled={!receiptItemCurrencyColumnsReady}
+                        style={{ width: "70px", minWidth: 0 }}
+                      >
+                        {CURRENCY_OPTIONS.map((currency) => (
+                          <option key={currency} value={currency}>{CURRENCY_SYMBOL[currency] ?? currency}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                  <select
-                    className="category-input cost-group-input"
-                    value={manualDraft.category || ""}
-                    onChange={(e) => setManualDraft((s) => ({ ...s, category: e.target.value }))}
-                  >
-                    <option value="">Keine Kostengruppe</option>
-                    {activeCostGroups().map((group) => (
-                      <option key={group.id || group.name} value={group.name}>{group.name}</option>
-                    ))}
-                  </select>
-                  <select
-                    className="category-input account-input"
-                    value={manualDraft.accountId || defaultFamilyAccount.id}
-                    onChange={(e) => setManualDraft((s) => ({ ...s, accountId: e.target.value }))}
-                    disabled={!accountCatalogReady}
-                  >
-                    {accountOptions.map((account) => (
-                      <option key={account.id} value={account.id}>{account.name}</option>
-                    ))}
-                  </select>
+                  
+                  {/* Right column */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1, minWidth: 0 }}>
+                    {/* Row 1: Cost Group */}
+                    <div className="color-select-wrapper" style={{...buildColorInputStyle(
+                      activeCostGroups().find(g => g.name === manualDraft.category)?.color
+                    ), minHeight: "32px"}}>
+                      <select
+                        className="category-input cost-group-input"
+                        value={manualDraft.category || ""}
+                        onChange={(e) => setManualDraft((s) => ({ ...s, category: e.target.value }))}
+                      >
+                        <option value="">Keine Kostengruppe</option>
+                        {activeCostGroups().map((group) => (
+                          <option key={group.id || group.name} value={group.name}>{group.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    {/* Row 2: Cost Center */}
+                    <div className="color-select-wrapper" style={{...buildColorInputStyle(
+                      costCenterOptions.find(cc => cc.id === manualDraft.accountId)?.color
+                    ), minHeight: "32px"}}>
+                      <select
+                        className={`category-input account-input ${!manualDraft.accountId ? 'missing-required' : ''}`}
+                        value={manualDraft.accountId || ""}
+                        onChange={(e) => setManualDraft((s) => ({ ...s, accountId: e.target.value }))}
+                        disabled={!accountCatalogReady || !costCenterOptions.length}
+                        title="Kostenträger"
+                      >
+                        <option value="">-- Wähle Kostenträger --</option>
+                        {costCenterOptions.map((costCenter) => (
+                          <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
-                <button className="btn secondary" onClick={addManualItem}>Hinzufügen</button>
+                <button className="btn secondary" onClick={addManualItem} style={{ marginBottom: "16px" }}>Hinzufügen</button>
               </div>
             </>
           )}
@@ -2943,7 +3813,7 @@ function App() {
             }
           }}
         >
-          <h2>5. Haushaltsbuch</h2>
+          <h2>6. Haushaltsbuch</h2>
           <div className="totals">
             <div className="total-card main">
               <span>Gesamtausgaben:</span>
@@ -2970,11 +3840,11 @@ function App() {
           </div>
 
           <div className="cost-group-summary">
-            <h3>Kostenübersicht nach Personenkonten</h3>
-            {!accountTotals.length && <p className="hint">Noch keine Kosten vorhanden.</p>}
-            {!!accountTotals.length && (
+            <h3>Kostenübersicht nach Kostenträgern</h3>
+            {!costCenterTotals.length && <p className="hint">Noch keine Kosten vorhanden.</p>}
+            {!!costCenterTotals.length && (
               <div className="cost-group-summary-list">
-                {accountTotals.map((row) => (
+                {costCenterTotals.map((row) => (
                   <div className="cost-group-summary-row" key={row.id} style={buildSummaryRowStyle(row.color)}>
                     <span className="cost-group-name">
                       <span className="cost-group-dot" style={{ backgroundColor: row.color }} />
@@ -2989,6 +3859,231 @@ function App() {
 
           <div className="cost-group-summary-actions">
             <p className="hint">Tippe in diese Karte, um die Liste der Kostengruppen zu öffnen.</p>
+          </div>
+        </article>
+
+        <article className="panel">
+          <h2>7. Verrechnung</h2>
+          <div className="totals">
+            <div className="total-card main">
+              <span>Gesamtausgaben:</span>
+              <strong>{euro.format(mainAccountTotal)}</strong>
+            </div>
+          </div>
+
+          <div className="cost-group-summary">
+            <h3>Ausgabensummen pro Zahlungskonto</h3>
+            {(() => {
+              const accounts = (familyAccounts.length ? familyAccounts : [defaultFamilyAccount])
+                .sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999));
+              const totals = {}; // accountId -> total_amount
+              
+              // Initialize all accounts
+              for (const account of accounts) {
+                totals[account.id] = 0;
+              }
+              // Also initialize family account in case it's not in accounts array
+              totals[defaultFamilyAccount.id] = 0;
+              
+              // Sum receipts by payment_account_id (with default to family account)
+              // If total_amount is 0/null, calculate from items instead
+              for (const receipt of receipts) {
+                const accountId = receipt.payment_account_id || defaultFamilyAccount.id;
+                let amount = receipt.total_amount || 0;
+                if (amount === 0) {
+                  // Fallback: sum the items
+                  amount = (receipt.receipt_items || []).reduce((sum, item) => {
+                    if (item.is_ignored === true) return sum;
+                    return sum + Number(item.amount || 0);
+                  }, 0);
+                }
+                totals[accountId] = (totals[accountId] || 0) + amount;
+              }
+              
+              if (!accounts.length) {
+                return <p className="hint">Keine Zahlungskonten vorhanden</p>;
+              }
+              
+              // Calculate sum of all accounts
+              const summedTotal = Object.values(totals).reduce((acc, val) => acc + val, 0);
+              const mainTotal = mainAccountTotal;
+              const diff = Math.abs(summedTotal - mainTotal);
+              
+              // Debug logs
+              console.log("🔍 DEBUG Ausgabensummen:");
+              console.log("  Belege insgesamt:", receipts.length);
+              console.log("  Totals per Konto:", totals);
+              receipts.forEach((r, i) => {
+                console.log(`    Beleg ${i}: merchant=${r.merchant}, payment_account_id=${r.payment_account_id}, total_amount=${r.total_amount}`);
+              });
+              console.log("  Summe Zahlungskonten:", summedTotal);
+              console.log("  mainAccountTotal (via sumItems):", mainTotal);
+              console.log("  Differenz:", diff);
+              
+              return (
+                <div>
+                  <div className="cost-group-summary-list">
+                    {accounts.map(acc => (
+                      <div className="cost-group-summary-row" key={acc.id} style={buildSummaryRowStyle(acc.color)}>
+                        <span className="cost-group-name">
+                          <span className="cost-group-dot" style={{ backgroundColor: acc.color }} />
+                          {acc.name}
+                        </span>
+                        <strong>{euro.format(totals[acc.id] || 0)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                  {diff > 0.01 && (
+                    <p style={{ color: "red", fontSize: "0.9em", marginTop: "8px", padding: "8px", backgroundColor: "#ffe0e0", borderRadius: "4px" }}>
+                      ⚠️ Summe der Konten ({euro.format(summedTotal)}) ≠ Gesamtausgaben ({euro.format(mainTotal)})
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+
+          <div className="cost-group-summary">
+            <h3>Ausgleich erforderlich</h3>
+            {(() => {
+              const accounts = (familyAccounts.length ? familyAccounts : [defaultFamilyAccount])
+                .sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999));
+              
+              // SETTLEMENT: Calculate who should pay what based on assigned_cost_center_id
+              
+              // 1. ZAHLUNGEN: Sum receipts by payment_account_id
+              const zahlungen = {}; // accountId -> amount
+              for (const account of accounts) {
+                zahlungen[account.id] = 0;
+              }
+              zahlungen[defaultFamilyAccount.id] = 0;
+              
+              for (const receipt of receipts) {
+                const accountId = receipt.payment_account_id || defaultFamilyAccount.id;
+                let amount = receipt.total_amount || 0;
+                if (amount === 0) {
+                  amount = (receipt.receipt_items || []).reduce((sum, item) => {
+                    if (item.is_ignored === true) return sum;
+                    return sum + Number(item.amount || 0);
+                  }, 0);
+                }
+                zahlungen[accountId] = (zahlungen[accountId] || 0) + amount;
+              }
+              
+              // 2. KOSTENTRÄGER: Sum items by their assigned_cost_center_id
+              // Then map back to the family_account that has that cost_center_id
+              const kostentraegerPerCostCenter = {}; // costCenterId -> amount
+              for (const receipt of receipts) {
+                for (const item of (receipt.receipt_items || [])) {
+                  if (item.is_ignored === true) continue;
+                  const ccId = item.assigned_cost_center_id;
+                  if (ccId) {
+                    kostentraegerPerCostCenter[ccId] = (kostentraegerPerCostCenter[ccId] || 0) + Number(item.amount || 0);
+                  }
+                }
+              }
+              
+              // Map cost centers back to accounts
+              const kostentraegerPerAccount = {}; // accountId -> amount
+              for (const account of accounts) {
+                kostentraegerPerAccount[account.id] = 0;
+              }
+              kostentraegerPerAccount[defaultFamilyAccount.id] = 0;
+              
+              // Sum by account based on which cost_center belongs to which account
+              for (const account of accounts) {
+                const ccId = account.cost_center_id;
+                if (ccId && kostentraegerPerCostCenter[ccId]) {
+                  kostentraegerPerAccount[account.id] = kostentraegerPerCostCenter[ccId];
+                }
+              }
+              // Also check default family account's cost center
+              if (defaultFamilyAccount.cost_center_id && kostentraegerPerCostCenter[defaultFamilyAccount.cost_center_id]) {
+                kostentraegerPerAccount[defaultFamilyAccount.id] = kostentraegerPerCostCenter[defaultFamilyAccount.cost_center_id];
+              }
+              
+              // 3. AUSGLEICH = Zahlungen - Kostenträger
+              const ausgleiche = {}; // accountId -> balance
+              for (const account of accounts) {
+                ausgleiche[account.id] = (zahlungen[account.id] || 0) - (kostentraegerPerAccount[account.id] || 0);
+              }
+              
+              // Debug
+              console.log("🔍 DEBUG Verrechnung (Settlement - mit assigned_cost_center_id):");
+              console.log("  Zahlungen:", zahlungen);
+              console.log("  Kostenträger per CostCenter:", kostentraegerPerCostCenter);
+              console.log("  Kostenträger per Account:", kostentraegerPerAccount);
+              console.log("  Ausgleiche:", ausgleiche);
+              
+              // Get debtors (negative = zahlt) and creditors (positive = erhält)
+              // Both are PAYMENT ACCOUNTS (Zahlungskonten), not cost centers!
+              const debtors = Object.entries(ausgleiche)
+                .filter(([id, bal]) => bal < -0.01)
+                .map(([id, bal]) => ({ id, name: accounts.find(a => a.id === id)?.name || "?", color: accounts.find(a => a.id === id)?.color, account: accounts.find(a => a.id === id), amount: -bal }));
+              
+              const creditors = Object.entries(ausgleiche)
+                .filter(([id, bal]) => bal > 0.01)
+                .map(([id, bal]) => ({ id, name: accounts.find(a => a.id === id)?.name || "?", color: accounts.find(a => a.id === id)?.color, account: accounts.find(a => a.id === id), amount: bal }));
+              
+              if (!debtors.length && !creditors.length) {
+                return <p className="hint">✓ Alle Konten sind ausgeglichen!</p>;
+              }
+              
+              return (
+                <>
+                  <div className="cost-group-summary-list">
+                    {debtors.map(debtor => (
+                      <div key={debtor.id} className="cost-group-summary-row" style={buildSummaryRowStyle(debtor.color)}>
+                        <span className="cost-group-name">
+                          <span className="cost-group-dot" style={{ backgroundColor: debtor.color }} />
+                          {debtor.name} schuldet
+                        </span>
+                        <strong>{euro.format(debtor.amount)}</strong>
+                      </div>
+                    ))}
+                    {creditors.map(creditor => (
+                      <div key={creditor.id} className="cost-group-summary-row" style={buildSummaryRowStyle(creditor.color)}>
+                        <span className="cost-group-name">
+                          <span className="cost-group-dot" style={{ backgroundColor: creditor.color }} />
+                          {creditor.name} erhält
+                        </span>
+                        <strong>{euro.format(creditor.amount)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <h3 style={{ marginTop: "20px", marginBottom: "12px" }}>Ausgleichszahlungen buchen</h3>
+                  <div style={{ display: "grid", gap: "8px" }}>
+                    {debtors.map(debtor => {
+                      const validCreditors = creditors.filter(creditor => {
+                        // Only show if creditor has a valid account with cost_center
+                        return creditor.account?.cost_center_id;
+                      });
+                      
+                      if (!validCreditors.length) return null;
+                      
+                      return (
+                        <div key={`settlement-${debtor.id}`} style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+                          <strong style={{ color: debtor.color }}>{debtor.name}</strong>
+                          <span>→</span>
+                          {validCreditors.map(creditor => (
+                            <button
+                              key={`settlement-${debtor.id}-${creditor.id}`}
+                              className="btn secondary mini-btn"
+                              disabled={busy}
+                              onClick={() => createSettlementReceipt(debtor.account, creditor.account, creditor.amount)}
+                              title={`${debtor.name} zahlt ${creditor.amount}€ an ${creditor.name}`}
+                            >
+                              {creditor.name} {euro.format(creditor.amount)}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </article>
       </section>

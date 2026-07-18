@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>BonBox - Datenbank-Setup</title>
+  <style>
+    body {
+      font-family: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      background: linear-gradient(145deg, #f1fbf9, #e2f7f3);
+      color: #10243e;
+    }
+    .container {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 20px 40px rgba(16, 36, 62, 0.12);
+    }
+    h1 {
+      color: #18b6a3;
+      font-size: 28px;
+      margin: 0 0 20px 0;
+    }
+    .step {
+      margin: 30px 0;
+      padding: 20px;
+      background: #f8fffd;
+      border-left: 4px solid #18b6a3;
+      border-radius: 8px;
+    }
+    .step-number {
+      display: inline-block;
+      width: 32px;
+      height: 32px;
+      background: #18b6a3;
+      color: white;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 32px;
+      font-weight: 700;
+      margin-right: 10px;
+    }
+    .step h3 {
+      display: inline-block;
+      margin: 0;
+      vertical-align: middle;
+    }
+    code {
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 2px 6px;
+      font-family: "Courier New", monospace;
+      font-size: 14px;
+    }
+    .code-block {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-family: "Courier New", monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      margin: 10px 0;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+    .btn-primary {
+      background: #18b6a3;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #0f9f8d;
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(24, 182, 163, 0.2);
+    }
+    .btn-secondary {
+      background: #e2f7f3;
+      color: #18b6a3;
+    }
+    .btn-secondary:hover {
+      background: #c9f0eb;
+    }
+    .warning {
+      background: #fef3c7;
+      border: 2px solid #f59e0b;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 20px 0;
+      color: #92400e;
+    }
+    .success {
+      background: #d1fae5;
+      border: 2px solid #10b981;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 20px 0;
+      color: #065f46;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 BonBox Setup</h1>
+    <p style="font-size: 18px; color: #456279;">Kostenträger-Spalte erstellen</p>
+
+    <div class="warning">
+      <strong>⚠️ WICHTIG!</strong> Die Kostenträger-Spalte existiert NOCH NICHT in der Datenbank. Deswegen werden Ihre Kostenträger-Auswahlen nicht gespeichert. Bitte führen Sie diese SQL-Befehle SOFORT aus:
+    </div>
+
+    <div class="step">
+      <span class="step-number">1</span>
+      <h3>SQL-Editor öffnen</h3>
+      <p>Klicken Sie auf den Button, um den Supabase SQL-Editor zu öffnen:</p>
+      <div class="button-group">
+        <button class="btn btn-primary" onclick="openSqlEditor()">
+          Supabase SQL-Editor öffnen →
+        </button>
+      </div>
+    </div>
+
+    <div class="step">
+      <span class="step-number">2</span>
+      <h3>SQL kopieren und einfügen</h3>
+      <p>Kopieren Sie diese SQL (klicken Sie zum Kopieren):</p>
+      <div class="code-block" onclick="copySql(this)">ALTER TABLE receipt_items 
+ADD COLUMN IF NOT EXISTS assigned_cost_center_id uuid 
+REFERENCES cost_centers(id) ON DELETE SET NULL;</div>
+      <p style="font-size: 14px; color: #666;">Klick zum Kopieren ↑</p>
+    </div>
+
+    <div class="step">
+      <span class="step-number">3</span>
+      <h3>In den Editor einfügen und ausführen</h3>
+      <p>
+        1. Fügen Sie die SQL in den SQL-Editor ein (großes Textfeld)<br>
+        2. Drücken Sie <code>Ctrl+Enter</code> (Windows) oder <code>Cmd+Enter</code> (Mac)<br>
+        3. Sie sollten eine Erfolgsmeldung sehen
+      </p>
+    </div>
+
+    <div class="step">
+      <span class="step-number">4</span>
+      <h3>Zurück zu BonBox</h3>
+      <p>Laden Sie die BonBox-App neu und probieren Sie die Kostenträger-Auswahl:</p>
+      <div class="button-group">
+        <button class="btn btn-secondary" onclick="window.location.href='http://localhost:5175/'">
+          ← Zurück zu BonBox
+        </button>
+      </div>
+    </div>
+
+    <div class="success" id="successMsg" style="display: none;">
+      <strong>✓ Erfolgreich!</strong> Die Spalte wurde erstellt. Sie können jetzt Kostenträger auswählen!
+    </div>
+
+  </div>
+
+  <script>
+    const SQL = `ALTER TABLE receipt_items 
+ADD COLUMN IF NOT EXISTS assigned_cost_center_id uuid 
+REFERENCES cost_centers(id) ON DELETE SET NULL;`;
+
+    function copySql(element) {
+      navigator.clipboard.writeText(SQL).then(() => {
+        const originalText = element.textContent;
+        element.textContent = '✓ Kopiert!';
+        element.style.background = '#10b981';
+        setTimeout(() => {
+          element.textContent = originalText;
+          element.style.background = '#1e293b';
+        }, 2000);
+      });
+    }
+
+    function openSqlEditor() {
+      window.open('https://supabase.com/dashboard/project/pfmafymhudbstxwrwtlu/sql/new', '_blank');
+    }
+
+    // Check if setup is complete
+    function checkSetupComplete() {
+      const sql = `ALTER TABLE receipt_items ADD COLUMN IF NOT EXISTS assigned_cost_center_id uuid REFERENCES cost_centers(id) ON DELETE SET NULL;`;
+      // This would need to be implemented by checking with the backend
+      // For now, just show the message after a delay if user closes the Supabase window
+      setTimeout(() => {
+        const successMsg = document.getElementById('successMsg');
+        if (successMsg && !successMsg.style.display === 'none') {
+          // Don't auto-show
+        }
+      }, 10000);
+    }
+
+    // Check every 5 seconds if the column now exists
+    setInterval(() => {
+      fetch('http://localhost:5175/api/check-column', { method: 'GET' })
+        .then(r => r.json())
+        .then(data => {
+          if (data.exists) {
+            document.getElementById('successMsg').style.display = 'block';
+          }
+        })
+        .catch(() => {}); // Ignore errors
+    }, 5000);
+  </script>
+</body>
+</html>
