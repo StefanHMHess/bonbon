@@ -548,6 +548,7 @@ label {
 
 .receipt-button:not(.active) {
   background: rgba(248, 255, 253, 0.5);
+  color: #10243e;
 }
 
 .receipt-button:not(.active)::before {
