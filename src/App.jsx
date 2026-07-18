@@ -3489,13 +3489,13 @@ function App() {
           
           {/* Receipt Filters */}
           <div style={{ marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
-            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               <input
                 type="text"
                 placeholder="Beleg suchen..."
                 value={receiptSearchText}
                 onChange={(e) => setReceiptSearchText(e.target.value)}
-                style={{ flex: 1, minWidth: "200px", padding: "6px 10px", border: "1px solid #ccc", borderRadius: "4px" }}
+                style={{ width: "100%", padding: "6px 10px", border: "1px solid #ccc", borderRadius: "4px" }}
               />
               <select
                 value={receiptMonthFilter}
@@ -3505,11 +3505,12 @@ function App() {
                 <option value="current">Diesen Monat</option>
                 <option value="all">Alle Belege</option>
               </select>
-              <label style={{ display: "flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <input
                   type="checkbox"
                   checked={hideSettlementReceipts}
                   onChange={(e) => setHideSettlementReceipts(e.target.checked)}
+                  style={{ width: "auto" }}
                 />
                 Ausgleichszahlungen verbergen
               </label>
