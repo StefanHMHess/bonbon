@@ -3757,9 +3757,7 @@ function App() {
                   {/* Right column */}
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1, minWidth: 0 }}>
                     {/* Row 1: Cost Group */}
-                    <div className="color-select-wrapper" style={{...buildColorInputStyle(
-                      activeCostGroups().find(g => g.name === manualDraft.category)?.color
-                    ), minHeight: "32px"}}>
+                    <div className="color-select-wrapper" style={{...(manualDraft.category ? buildColorInputStyle(activeCostGroups().find(g => g.name === manualDraft.category)?.color) : {}), minHeight: "32px"}}>
                       <select
                         className="category-input cost-group-input"
                         value={manualDraft.category || ""}
@@ -3773,9 +3771,7 @@ function App() {
                     </div>
                     
                     {/* Row 2: Cost Center */}
-                    <div className="color-select-wrapper" style={{...buildColorInputStyle(
-                      costCenterOptions.find(cc => cc.id === manualDraft.accountId)?.color
-                    ), minHeight: "32px"}}>
+                    <div className="color-select-wrapper" style={{...(manualDraft.accountId ? buildColorInputStyle(costCenterOptions.find(cc => cc.id === manualDraft.accountId)?.color) : {}), minHeight: "32px"}}>
                       <select
                         className={`category-input account-input ${!manualDraft.accountId ? 'missing-required' : ''}`}
                         value={manualDraft.accountId || ""}
