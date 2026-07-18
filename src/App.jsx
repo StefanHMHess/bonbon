@@ -2255,6 +2255,27 @@ function App() {
       return;
     }
 
+    // Auto-assign categories based on merchant name
+    const freshReceipt = await supabase
+      .from("receipts")
+      .select(`*, receipt_items(*)`)
+      .eq("id", receiptId)
+      .single();
+
+    if (freshReceipt.data?.receipt_items?.length) {
+      const groups = activeCostGroups();
+      const merchantCategory = inferCostGroupName(freshReceipt.data.merchant || "", groups);
+      
+      if (merchantCategory) {
+        for (const item of freshReceipt.data.receipt_items) {
+          await supabase
+            .from("receipt_items")
+            .update({ category: merchantCategory })
+            .eq("id", item.id);
+        }
+      }
+    }
+
     setSelectedFile(null);
     setBusy(false);
     setSuccess("Beleg wurde analysiert und ins Haushaltsbuch übernommen.");
@@ -2984,7 +3005,7 @@ function App() {
               </button>
             )}
           </div>
-          {!currentReceipt && <p className="hint">Bitte links einen Beleg auswählen.</p>}
+          {!currentReceipt && <p className="hint">Wähle oben einen Beleg aus.</p>}
           {currentReceipt && (
             <div>
               <div className={`color-select-wrapper ${!currentReceipt.payment_account_id ? 'missing-required' : ''}`} style={buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color)}>
@@ -3598,7 +3619,7 @@ function App() {
               Kostengruppen zuordnen
             </button>
           </div>
-          {!currentReceipt && <p className="hint">Bitte links einen Beleg auswählen.</p>}
+          {!currentReceipt && <p className="hint">Wähle oben einen Beleg aus.</p>}
           {currentReceipt && (
             <>
               <div className="receipt-info">
