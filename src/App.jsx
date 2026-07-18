@@ -2276,6 +2276,14 @@ function App() {
       }
     }
 
+    // Transfer payment account from current receipt to new receipt
+    if (currentReceipt?.payment_account_id) {
+      await supabase
+        .from("receipts")
+        .update({ payment_account_id: currentReceipt.payment_account_id })
+        .eq("id", receiptId);
+    }
+
     setSelectedFile(null);
     setBusy(false);
     setSuccess("Beleg wurde analysiert und ins Haushaltsbuch übernommen.");
