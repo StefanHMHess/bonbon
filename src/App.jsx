@@ -433,7 +433,7 @@ function App() {
     accountType: "person",
     sortOrder: 100,
   });
-  const [hideSettlementReceipts, setHideSettlementReceipts] = useState(false);
+  const [hideSettlementReceipts, setHideSettlementReceipts] = useState(true);
   const [receiptSearchText, setReceiptSearchText] = useState("");
   const [receiptMonthFilter, setReceiptMonthFilter] = useState("current");
   const exchangeRateCache = useRef(new Map());

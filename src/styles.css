@@ -126,12 +126,6 @@ h2 {
   }
 }
 
-@media (max-width: 900px) {
-  .grid.two {
-    grid-template-columns: 1fr;
-  }
-}
-
 .workflow-stack {
   display: grid;
   gap: 14px;
@@ -139,6 +133,7 @@ h2 {
 }
 
 article {
+  min-width: 0;
 }
 
 .panel {
