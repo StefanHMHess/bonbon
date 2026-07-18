@@ -551,6 +551,12 @@ label {
   color: #10243e;
 }
 
+.receipt-button:not(.active) small,
+.receipt-button:not(.active) strong,
+.receipt-button:not(.active) span {
+  color: #10243e;
+}
+
 .receipt-button:not(.active)::before {
   content: '';
   position: absolute;
