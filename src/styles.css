@@ -543,6 +543,8 @@ label {
   flex-wrap: wrap;
   align-items: flex-start;
   min-width: 0;
+  opacity: 0.4;
+  transition: opacity 0.2s ease;
 }
 
 .receipt-amounts {
@@ -568,6 +570,7 @@ label {
 }
 
 .receipt-button.active {
+  opacity: 1;
   border-color: var(--main);
   background: #eafaf6;
 }
