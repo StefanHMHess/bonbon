@@ -3769,7 +3769,7 @@ function App() {
           
           {/* Zahlkonto and Kostenträger below buttons */}
           {currentReceipt && !collapsedSections.has("receipts") && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "12px", padding: "0", position: "sticky", top: "126px", zIndex: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "12px", padding: "0", position: "sticky", top: "160px", zIndex: 20 }}>
               <div className={`color-select-wrapper ${!currentReceipt.payment_account_id ? 'missing-required' : ''}`} style={{...(!currentReceipt.payment_account_id ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", height: "32px", display: "flex", alignItems: "center", padding: "0 8px" } : {...buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color), height: "32px", display: "flex", alignItems: "center", padding: "0 8px"}) }}>
                 <select
                   value={currentReceipt.payment_account_id || ""}
@@ -3821,7 +3821,7 @@ function App() {
                   <select
                     value={receiptMonthFilter}
                     onChange={(e) => setReceiptMonthFilter(e.target.value)}
-                    style={{ padding: "4px 8px", border: "1px solid #ccc", borderRadius: "4px", fontSize: "0.9rem", height: "32px" }}
+                    style={{ padding: "4px 8px", border: "1px solid #ccc", borderRadius: "12px", fontSize: "0.9rem", height: "32px" }}
                   >
                     <option value="current">Diesen Monat</option>
                     <option value="last">Letzten Monat</option>
