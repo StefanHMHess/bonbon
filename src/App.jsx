@@ -3842,9 +3842,9 @@ function App() {
                 {(currentReceipt.receipt_items || []).map((item) => (
                   <div key={item.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px", paddingBottom: "8px", borderBottom: "1px solid rgba(0,0,0,0.05)", minWidth: 0 }}>
                     {/* Left column: Description and Amount */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", minWidth: 0, minHeight: "80px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", minWidth: 0 }}>
                       {/* Row 1: Description with delete button */}
-                      <div style={{ display: "flex", gap: "4px", alignItems: "center", minWidth: 0 }}>
+                      <div style={{ display: "flex", gap: "4px", alignItems: "center", minWidth: 0, height: "40px" }}>
                         <input
                           className="description-input"
                           value={item.description || ""}
@@ -3857,7 +3857,7 @@ function App() {
                           disabled={busy}
                           onClick={() => deleteReceiptItem(item)}
                           title="Position löschen"
-                          style={{ padding: "4px 6px", minWidth: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                          style={{ padding: "4px 6px", minWidth: "32px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
                         >
                           🗑️
                         </button>
