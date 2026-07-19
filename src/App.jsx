@@ -3842,7 +3842,7 @@ function App() {
                 {(currentReceipt.receipt_items || []).map((item) => (
                   <div key={item.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px", paddingBottom: "8px", borderBottom: "1px solid rgba(0,0,0,0.05)", minWidth: 0 }}>
                     {/* Left column: Description and Amount */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0px", minWidth: 0 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
                       {/* Row 1: Description with delete button */}
                       <div style={{ display: "flex", gap: "4px", alignItems: "center", minWidth: 0, height: "40px" }}>
                         <input
@@ -3896,7 +3896,7 @@ function App() {
                     </div>
                     
                     {/* Right column: Cost Group and Cost Center */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0px", minWidth: 0 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
                       {/* Row 1: Cost Group */}
                       <div className={`color-select-wrapper ${!item.category ? 'missing-required' : ''}`} style={!item.category ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", height: "40px", minWidth: 0, display: "flex", alignItems: "center" } : {...buildColorInputStyle(
                         activeCostGroups().find(g => g.name === item.category)?.color
