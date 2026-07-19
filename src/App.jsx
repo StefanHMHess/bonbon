@@ -457,11 +457,32 @@ function App() {
         return false;
       }
 
-      // Filter: Current month only
+      // Filter: Month/Year filtering
+      const receiptDate = parseReceiptDate(receipt);
+      
       if (receiptMonthFilter === "current") {
-        const receiptDate = parseReceiptDate(receipt);
         if (receiptDate) {
           if (receiptDate.getFullYear() !== currentYear || receiptDate.getMonth() !== currentMonth) {
+            return false;
+          }
+        }
+      } else if (receiptMonthFilter === "last") {
+        if (receiptDate) {
+          const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+          const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+          if (receiptDate.getFullYear() !== lastMonthYear || receiptDate.getMonth() !== lastMonth) {
+            return false;
+          }
+        }
+      } else if (receiptMonthFilter === "year") {
+        if (receiptDate) {
+          if (receiptDate.getFullYear() !== currentYear) {
+            return false;
+          }
+        }
+      } else if (receiptMonthFilter === "lastyear") {
+        if (receiptDate) {
+          if (receiptDate.getFullYear() !== currentYear - 1) {
             return false;
           }
         }
@@ -3615,37 +3636,36 @@ function App() {
                 onChange={(e) => setReceiptSearchText(e.target.value)}
                 style={{ width: "100%", padding: "6px 10px", border: "1px solid #ccc", borderRadius: "4px" }}
               />
-              <select
-                value={receiptMonthFilter}
-                onChange={(e) => setReceiptMonthFilter(e.target.value)}
-                style={{ padding: "6px 10px", border: "1px solid #ccc", borderRadius: "4px" }}
-              >
-                <option value="current">Diesen Monat</option>
-                <option value="all">Alle Belege</option>
-              </select>
-              <label style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <input
-                  type="checkbox"
-                  checked={hideSettlementReceipts}
-                  onChange={(e) => setHideSettlementReceipts(e.target.checked)}
-                  style={{ width: "auto" }}
-                />
-                Ausgleichszahlungen verbergen
-              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                <select
+                  value={receiptMonthFilter}
+                  onChange={(e) => setReceiptMonthFilter(e.target.value)}
+                  style={{ padding: "6px 10px", border: "1px solid #ccc", borderRadius: "4px" }}
+                >
+                  <option value="current">Diesen Monat</option>
+                  <option value="last">Letzten Monat</option>
+                  <option value="year">Dieses Jahr</option>
+                  <option value="lastyear">Letztes Jahr</option>
+                  <option value="all">Alle Belege</option>
+                </select>
+                <label style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 0" }}>
+                  <input
+                    type="checkbox"
+                    checked={hideSettlementReceipts}
+                    onChange={(e) => setHideSettlementReceipts(e.target.checked)}
+                    style={{ width: "auto" }}
+                  />
+                  Ausgleichszahlungen verbergen
+                </label>
+              </div>
             </div>
           </div>
           
           {currentReceipt && (
-            <div className="receipt-actions" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+            <div className="receipt-actions" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "8px" }}>
               <button
                 className="btn secondary"
-                disabled={busy || !currentReceipt.image_path || !canUseApp}
-                onClick={() => retryAnalysis(currentReceipt)}
-              >
-                Erneut analysieren
-              </button>
-              <button
-                className="btn secondary"
+                style={{ gridColumn: "span 2" }}
                 disabled={previewBusy || !currentReceipt.image_path}
                 onClick={() => openReceiptPreview(currentReceipt)}
               >
@@ -3653,43 +3673,50 @@ function App() {
               </button>
               <button
                 className="btn secondary"
+                style={{ gridColumn: "span 2" }}
                 disabled={busy}
                 onClick={() => deleteReceipt(currentReceipt)}
               >
                 Beleg löschen
               </button>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                <div className={`color-select-wrapper ${!currentReceipt.payment_account_id ? 'missing-required' : ''}`} style={!currentReceipt.payment_account_id ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color)}>
-                  <select
-                    value={currentReceipt.payment_account_id || ""}
-                    onChange={(e) => patchReceipt(currentReceipt.id, { payment_account_id: e.target.value || null })}
-                    disabled={busy}
-                    title="Zahlungskonto"
-                  >
-                    <option value="">-- Zahlungskonto --</option>
-                    {paymentAccountOptions.map((account) => (
-                      <option key={account.id} value={account.id}>{account.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className={`color-select-wrapper ${!selectedCostCenterForReceipt ? 'missing-required' : ''}`} style={!selectedCostCenterForReceipt ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((costCenterOptions.find((cc) => cc.id === selectedCostCenterForReceipt) || {}).color)}>
-                  <select
-                    value={selectedCostCenterForReceipt || ""}
-                    onChange={(e) => {
-                      setSelectedCostCenterForReceipt(e.target.value || null);
-                      if (e.target.value) {
-                        changeCostCenterForAllItems(e.target.value);
-                      }
-                    }}
-                    disabled={busy}
-                    title="Kostenträger"
-                  >
-                    <option value="">-- Kostenträger --</option>
-                    {costCenterOptions.map((costCenter) => (
-                      <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
-                    ))}
-                  </select>
-                </div>
+              <button
+                className="btn secondary"
+                style={{ gridColumn: "span 2" }}
+                disabled={busy || !currentReceipt.image_path || !canUseApp}
+                onClick={() => retryAnalysis(currentReceipt)}
+              >
+                Erneut analysieren
+              </button>
+              <div className={`color-select-wrapper ${!currentReceipt.payment_account_id ? 'missing-required' : ''}`} style={{ gridColumn: "span 3", ...(!currentReceipt.payment_account_id ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color)) }}>
+                <select
+                  value={currentReceipt.payment_account_id || ""}
+                  onChange={(e) => patchReceipt(currentReceipt.id, { payment_account_id: e.target.value || null })}
+                  disabled={busy}
+                  title="Zahlungskonto"
+                >
+                  <option value="">-- Zahlungskonto --</option>
+                  {paymentAccountOptions.map((account) => (
+                    <option key={account.id} value={account.id}>{account.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className={`color-select-wrapper ${!selectedCostCenterForReceipt ? 'missing-required' : ''}`} style={{ gridColumn: "span 3", ...(!selectedCostCenterForReceipt ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((costCenterOptions.find((cc) => cc.id === selectedCostCenterForReceipt) || {}).color)) }}>
+                <select
+                  value={selectedCostCenterForReceipt || ""}
+                  onChange={(e) => {
+                    setSelectedCostCenterForReceipt(e.target.value || null);
+                    if (e.target.value) {
+                      changeCostCenterForAllItems(e.target.value);
+                    }
+                  }}
+                  disabled={busy}
+                  title="Kostenträger"
+                >
+                  <option value="">-- Kostenträger --</option>
+                  {costCenterOptions.map((costCenter) => (
+                    <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
           )}
