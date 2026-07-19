@@ -3860,7 +3860,7 @@ function App() {
                     {/* Right column: Cost Group and Cost Center */}
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px", minWidth: 0 }}>
                       {/* Row 1: Cost Group */}
-                      <div className="color-select-wrapper" style={{...buildColorInputStyle(
+                      <div className={`color-select-wrapper ${!item.category ? 'missing-required' : ''}`} style={!item.category ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", minHeight: "32px", minWidth: 0 } : {...buildColorInputStyle(
                         activeCostGroups().find(g => g.name === item.category)?.color
                       ), minHeight: "32px", minWidth: 0}}>
                         <select
@@ -3945,7 +3945,7 @@ function App() {
                   {/* Right column */}
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1, minWidth: 0 }}>
                     {/* Row 1: Cost Group */}
-                    <div className="color-select-wrapper" style={{...(manualDraft.category ? buildColorInputStyle(activeCostGroups().find(g => g.name === manualDraft.category)?.color) : {}), minHeight: "32px"}}>
+                    <div className={`color-select-wrapper ${!manualDraft.category ? 'missing-required' : ''}`} style={!manualDraft.category ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", minHeight: "32px" } : {...buildColorInputStyle(activeCostGroups().find(g => g.name === manualDraft.category)?.color), minHeight: "32px"}}>
                       <select
                         className="category-input cost-group-input"
                         value={manualDraft.category || ""}
@@ -3959,9 +3959,9 @@ function App() {
                     </div>
                     
                     {/* Row 2: Cost Center */}
-                    <div className="color-select-wrapper" style={{...(manualDraft.accountId ? buildColorInputStyle(costCenterOptions.find(cc => cc.id === manualDraft.accountId)?.color) : {}), minHeight: "32px"}}>
+                    <div className={`color-select-wrapper ${!manualDraft.accountId ? 'missing-required' : ''}`} style={!manualDraft.accountId ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", minHeight: "32px" } : {...buildColorInputStyle(costCenterOptions.find(cc => cc.id === manualDraft.accountId)?.color), minHeight: "32px"}}>
                       <select
-                        className={`category-input account-input ${!manualDraft.accountId ? 'missing-required' : ''}`}
+                        className="category-input account-input"
                         value={manualDraft.accountId || ""}
                         onChange={(e) => setManualDraft((s) => ({ ...s, accountId: e.target.value }))}
                         disabled={!accountCatalogReady || !costCenterOptions.length}
