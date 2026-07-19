@@ -3708,7 +3708,7 @@ function App() {
 
       <section className="grid two workflow-stack">
         <article className="panel">
-          <div className="section-header-with-button">
+          <div className="section-header-with-button" style={{ position: "sticky", top: 0, backgroundColor: "white", zIndex: 11, paddingBottom: "8px" }}>
             <button
               onClick={() => toggleSection("receipts")}
               style={{
@@ -3737,57 +3737,8 @@ function App() {
           {!collapsedSections.has("receipts") && (
             <>
           
-          {/* Receipt Filters */}
-          <div style={{ marginTop: "12px", marginBottom: "12px", paddingBottom: "8px", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <input
-                type="text"
-                placeholder="Beleg suchen..."
-                value={receiptSearchText}
-                onChange={(e) => setReceiptSearchText(e.target.value)}
-                style={{ width: "100%", padding: "6px 10px", border: "1px solid #ccc", borderRadius: "4px" }}
-              />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                <select
-                  value={receiptMonthFilter}
-                  onChange={(e) => setReceiptMonthFilter(e.target.value)}
-                  style={{ padding: "4px 8px", border: "1px solid #ccc", borderRadius: "4px", fontSize: "0.9rem", height: "32px" }}
-                >
-                  <option value="current">Diesen Monat</option>
-                  <option value="last">Letzten Monat</option>
-                  <option value="year">Dieses Jahr</option>
-                  <option value="lastyear">Letztes Jahr</option>
-                  <option value="all">Alle Belege</option>
-                  <optgroup label="Einzelne Monate">
-                    <option value="0">Januar</option>
-                    <option value="1">Februar</option>
-                    <option value="2">März</option>
-                    <option value="3">April</option>
-                    <option value="4">Mai</option>
-                    <option value="5">Juni</option>
-                    <option value="6">Juli</option>
-                    <option value="7">August</option>
-                    <option value="8">September</option>
-                    <option value="9">Oktober</option>
-                    <option value="10">November</option>
-                    <option value="11">Dezember</option>
-                  </optgroup>
-                </select>
-                <label style={{ display: "flex", alignItems: "center", gap: "6px", padding: "4px 0" }}>
-                  <input
-                    type="checkbox"
-                    checked={hideSettlementReceipts}
-                    onChange={(e) => setHideSettlementReceipts(e.target.checked)}
-                    style={{ width: "auto" }}
-                  />
-                  <span style={{ fontSize: "0.9rem" }}>Ausgleichszahlungen verbergen</span>
-                </label>
-              </div>
-            </div>
-          </div>
-          
           {currentReceipt && (
-            <div className="receipt-actions" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "4px", marginTop: "-4px" }}>
+            <div className="receipt-actions" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "4px", marginBottom: "12px", padding: "8px 0", position: "sticky", top: 0, backgroundColor: "white", zIndex: 10 }}>
               <button
                 className="btn secondary"
                 style={{ gridColumn: "span 2" }}
@@ -3845,6 +3796,55 @@ function App() {
               </div>
             </div>
           )}
+          
+          {/* Receipt Filters */}
+          <div style={{ marginTop: "12px", marginBottom: "12px", paddingBottom: "8px", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <input
+                type="text"
+                placeholder="Beleg suchen..."
+                value={receiptSearchText}
+                onChange={(e) => setReceiptSearchText(e.target.value)}
+                style={{ width: "100%", padding: "6px 10px", border: "1px solid #ccc", borderRadius: "4px" }}
+              />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                <select
+                  value={receiptMonthFilter}
+                  onChange={(e) => setReceiptMonthFilter(e.target.value)}
+                  style={{ padding: "4px 8px", border: "1px solid #ccc", borderRadius: "4px", fontSize: "0.9rem", height: "32px" }}
+                >
+                  <option value="current">Diesen Monat</option>
+                  <option value="last">Letzten Monat</option>
+                  <option value="year">Dieses Jahr</option>
+                  <option value="lastyear">Letztes Jahr</option>
+                  <option value="all">Alle Belege</option>
+                  <optgroup label="Einzelne Monate">
+                    <option value="0">Januar</option>
+                    <option value="1">Februar</option>
+                    <option value="2">März</option>
+                    <option value="3">April</option>
+                    <option value="4">Mai</option>
+                    <option value="5">Juni</option>
+                    <option value="6">Juli</option>
+                    <option value="7">August</option>
+                    <option value="8">September</option>
+                    <option value="9">Oktober</option>
+                    <option value="10">November</option>
+                    <option value="11">Dezember</option>
+                  </optgroup>
+                </select>
+                <label style={{ display: "flex", alignItems: "center", gap: "6px", padding: "4px 0" }}>
+                  <input
+                    type="checkbox"
+                    checked={hideSettlementReceipts}
+                    onChange={(e) => setHideSettlementReceipts(e.target.checked)}
+                    style={{ width: "auto" }}
+                  />
+                  <span style={{ fontSize: "0.9rem" }}>Ausgleichszahlungen verbergen</span>
+                </label>
+              </div>
+            </div>
+          </div>
           <div className="receipt-list">
             {filteredReceipts.map((receipt) => {
               const paymentAccountColor = (paymentAccountOptions.find((a) => a.id === receipt.payment_account_id) || {}).color;
