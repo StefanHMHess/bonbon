@@ -396,6 +396,7 @@ function App() {
   const [costCenterDrafts, setCostCenterDrafts] = useState({});
   const [newCostCenter, setNewCostCenter] = useState({ name: "", color: "#18b6a3", sort_order: 100 });
   const [newReceiptCostCenterId, setNewReceiptCostCenterId] = useState(null); // Kostenträger (wer trägt die Kosten)
+  const [newPaymentAccountId, setNewPaymentAccountId] = useState(null); // Zahlungskonto für neuen Beleg
   const [authEmail, setAuthEmail] = useState(() => {
     if (typeof window === "undefined") return "";
     return window.localStorage.getItem(AUTH_EMAIL_STORAGE_KEY) || "";
@@ -2276,15 +2277,21 @@ function App() {
       }
     }
 
-    // Transfer payment account from current receipt to new receipt
-    if (currentReceipt?.payment_account_id) {
+    // Transfer payment account to new receipt
+    const paymentAccountToUse = newPaymentAccountId || currentReceipt?.payment_account_id;
+
+    if (paymentAccountToUse) {
       await supabase
         .from("receipts")
-        .update({ payment_account_id: currentReceipt.payment_account_id })
+        .update({ payment_account_id: paymentAccountToUse })
         .eq("id", receiptId);
     }
 
+    // Reset form
     setSelectedFile(null);
+    setNewReceiptCostCenterId(null);
+    setNewPaymentAccountId(null);
+    
     setBusy(false);
     setSuccess("Beleg wurde analysiert und ins Haushaltsbuch übernommen.");
     await loadReceipts();
@@ -3007,33 +3014,35 @@ function App() {
         </section>
       )}
 
-      <section className="workflow-stack">
+      {!selectedReceipt && (
         <article className="panel">
-          <div className="section-header-with-button">
-            <h2>1. Kosten für (Kostenträger)</h2>
-            <button className="btn secondary" onClick={() => setShowCostCenterModal(true)}>
-              Kostenträger bearbeiten
-            </button>
-          </div>
-          <div className="upload-account-row">
-            <div className={`color-select-wrapper ${!newReceiptCostCenterId ? 'missing-required' : ''}`} style={!newReceiptCostCenterId ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle(selectedUploadCostCenter?.color)}>
-              <select
-                value={newReceiptCostCenterId || ""}
-                onChange={(e) => setNewReceiptCostCenterId(e.target.value || null)}
-              >
-                <option value="">-- Wähle Kostenträger --</option>
-                {costCenterOptions.map((costCenter) => (
-                  <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
-                ))}
-              </select>
+          {/* Section 1 */}
+          <div style={{ paddingBottom: "16px", marginBottom: "16px", borderBottom: "1px solid rgba(0,0,0,0.1)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <h2 style={{ margin: 0 }}>1. Kosten für (Kostenträger)</h2>
+              <button className="btn secondary" onClick={() => setShowCostCenterModal(true)}>
+                Kostenträger bearbeiten
+              </button>
+            </div>
+            <div className="upload-account-row">
+              <div className={`color-select-wrapper ${!newReceiptCostCenterId ? 'missing-required' : ''}`} style={!newReceiptCostCenterId ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle(selectedUploadCostCenter?.color)}>
+                <select
+                  value={newReceiptCostCenterId || ""}
+                  onChange={(e) => setNewReceiptCostCenterId(e.target.value || null)}
+                >
+                  <option value="">-- Wähle Kostenträger --</option>
+                  {costCenterOptions.map((costCenter) => (
+                    <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
-        </article>
 
-        <article className="panel">
-          <div className="section-header-with-button">
-            <h2>2. Zahlung von (Zahlungskonto)</h2>
-            {currentReceipt && (
+          {/* Section 2 */}
+          <div style={{ paddingBottom: "16px", marginBottom: "16px", borderBottom: "1px solid rgba(0,0,0,0.1)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <h2 style={{ margin: 0 }}>2. Zahlung von (Zahlungskonto)</h2>
               <button
                 className="btn secondary"
                 onClick={() => {
@@ -3043,49 +3052,45 @@ function App() {
               >
                 Konten bearbeiten
               </button>
-            )}
-          </div>
-          {!currentReceipt && <p className="hint">Wähle oben einen Beleg aus.</p>}
-          {currentReceipt && (
-            <div>
-              <div className={`color-select-wrapper ${!currentReceipt.payment_account_id ? 'missing-required' : ''}`} style={!currentReceipt.payment_account_id ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color)}>
-                <select
-                  value={currentReceipt.payment_account_id || ""}
-                  onChange={(e) => patchReceipt(currentReceipt.id, { payment_account_id: e.target.value || null })}
-                  disabled={busy}
-                >
-                  <option value="">-- Wähle Zahlungskonto --</option>
-                  {paymentAccountOptions.map((account) => (
-                    <option key={account.id} value={account.id}>{account.name}</option>
-                  ))}
-                </select>
-              </div>
             </div>
-          )}
-        </article>
-
-        <article className="panel">
-          <h2>3. Beleg erfassen</h2>
-          <div className="file-picker">
-            <input
-              id="receipt-file"
-              className="file-input-hidden"
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-            />
-            <label htmlFor="receipt-file" className="btn secondary file-trigger">
-              Beleg auswählen/Foto aufnehmen
-            </label>
-            <p className="hint file-name">
-              {selectedFile ? `Ausgewählt: ${selectedFile.name}` : "Noch keine Datei ausgewählt"}
-            </p>
+            <div className={`color-select-wrapper ${!newReceiptCostCenterId ? 'missing-required' : ''}`} style={!newReceiptCostCenterId ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : {}}>
+              <select
+                value={newPaymentAccountId || ""}
+                onChange={(e) => setNewPaymentAccountId(e.target.value || null)}
+                disabled={busy}
+              >
+                <option value="">-- Wähle Zahlungskonto --</option>
+                {paymentAccountOptions.map((account) => (
+                  <option key={account.id} value={account.id}>{account.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
-          <button className="btn" disabled={!selectedFile || busy || !hasSetup} onClick={uploadAndExtract}>
-            {busy ? "Analysiere..." : "Beleg per KI auswerten"}
-          </button>
+
+          {/* Section 3 */}
+          <div>
+            <h2>3. Beleg erfassen</h2>
+            <div className="file-picker">
+              <input
+                id="receipt-file"
+                className="file-input-hidden"
+                type="file"
+                accept="image/*,application/pdf"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+              />
+              <label htmlFor="receipt-file" className="btn secondary file-trigger">
+                Beleg auswählen/Foto aufnehmen
+              </label>
+              <p className="hint file-name">
+                {selectedFile ? `Ausgewählt: ${selectedFile.name}` : "Noch keine Datei ausgewählt"}
+              </p>
+            </div>
+            <button className="btn" disabled={!selectedFile || busy || !hasSetup} onClick={uploadAndExtract}>
+              {busy ? "Analysiere..." : "Beleg per KI auswerten"}
+            </button>
+          </div>
         </article>
-      </section>
+      )}
 
       {showCostGroupModal && (
         <div className="modal-backdrop" onClick={() => setShowCostGroupModal(false)}>
