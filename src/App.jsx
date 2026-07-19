@@ -3129,7 +3129,7 @@ function App() {
                   }}
                   title="Sektion ein-/ausblenden"
                 >
-                  {collapsedSections.has("cost-center-form") ? "▶" : "▼"}
+                  {collapsedSections.has("cost-center-form") ? "⊕" : "⊖"}
                 </button>
                 <h2 style={{ margin: 0 }}>1. Kosten für (Kostenträger)</h2>
               </div>
@@ -3172,7 +3172,7 @@ function App() {
                   }}
                   title="Sektion ein-/ausblenden"
                 >
-                  {collapsedSections.has("payment-account-form") ? "▶" : "▼"}
+                  {collapsedSections.has("payment-account-form") ? "⊕" : "⊖"}
                 </button>
                 <h2 style={{ margin: 0 }}>2. Zahlung von (Zahlungskonto)</h2>
               </div>
@@ -3219,7 +3219,7 @@ function App() {
                 }}
                 title="Sektion ein-/ausblenden"
               >
-                {collapsedSections.has("receipt-capture-form") ? "▶" : "▼"}
+                {collapsedSections.has("receipt-capture-form") ? "⊕" : "⊖"}
               </button>
               <h2 style={{ margin: 0 }}>3. Beleg erfassen</h2>
             </div>
@@ -3724,20 +3724,22 @@ function App() {
               }}
               title="Sektion ein-/ausblenden"
             >
-              {collapsedSections.has("receipts") ? "▶" : "▼"}
+              {collapsedSections.has("receipts") ? "⊕" : "⊖"}
             </button>
             <h2 style={{ margin: 0 }}>Belege</h2>
-            <button
-              className="btn secondary"
-              onClick={() => setSelectedReceipt(null)}
-            >
-              Neuer Beleg
-            </button>
+            {!collapsedSections.has("receipts") && (
+              <button
+                className="btn secondary"
+                onClick={() => setSelectedReceipt(null)}
+              >
+                Neuer Beleg
+              </button>
+            )}
           </div>
           {!collapsedSections.has("receipts") && (
             <>
           
-          {currentReceipt && (
+          {currentReceipt && !collapsedSections.has("receipts") && (
             <div className="receipt-actions" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "4px", marginBottom: "12px", padding: "8px 0", position: "sticky", top: 0, backgroundColor: "white", zIndex: 10 }}>
               <button
                 className="btn secondary"
@@ -3763,7 +3765,13 @@ function App() {
               >
                 Erneut analysieren
               </button>
-              <div className={`color-select-wrapper ${!currentReceipt.payment_account_id ? 'missing-required' : ''}`} style={{ gridColumn: "span 3", ...(!currentReceipt.payment_account_id ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color)) }}>
+            </div>
+          )}
+          
+          {/* Zahlkonto and Kostenträger below actions */}
+          {currentReceipt && !collapsedSections.has("receipts") && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "12px" }}>
+              <div className={`color-select-wrapper ${!currentReceipt.payment_account_id ? 'missing-required' : ''}`} style={{...(!currentReceipt.payment_account_id ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color)) }}>
                 <select
                   value={currentReceipt.payment_account_id || ""}
                   onChange={(e) => patchReceipt(currentReceipt.id, { payment_account_id: e.target.value || null })}
@@ -3776,7 +3784,7 @@ function App() {
                   ))}
                 </select>
               </div>
-              <div className={`color-select-wrapper ${!selectedCostCenterForReceipt ? 'missing-required' : ''}`} style={{ gridColumn: "span 3", ...(!selectedCostCenterForReceipt ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((costCenterOptions.find((cc) => cc.id === selectedCostCenterForReceipt) || {}).color)) }}>
+              <div className={`color-select-wrapper ${!selectedCostCenterForReceipt ? 'missing-required' : ''}`} style={{...(!selectedCostCenterForReceipt ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((costCenterOptions.find((cc) => cc.id === selectedCostCenterForReceipt) || {}).color)) }}>
                 <select
                   value={selectedCostCenterForReceipt || ""}
                   onChange={(e) => {
@@ -3912,7 +3920,7 @@ function App() {
               }}
               title="Sektion ein-/ausblenden"
             >
-              {collapsedSections.has("receipt-items") ? "▶" : "▼"}
+              {collapsedSections.has("receipt-items") ? "⊕" : "⊖"}
             </button>
             <h2 style={{ margin: 0 }}>Positionen Beleg</h2>
             <button
@@ -4170,35 +4178,37 @@ function App() {
                 }}
                 title="Sektion ein-/ausblenden"
               >
-                {collapsedSections.has("household-book") ? "▶" : "▼"}
+                {collapsedSections.has("household-book") ? "⊕" : "⊖"}
               </button>
               <h2 style={{ margin: 0 }}>Haushaltsbuch</h2>
             </div>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button className="btn secondary" onClick={(e) => { e.stopPropagation(); setShowCostCenterModal(true); }}>
-                Kostenträger bearbeiten
-              </button>
-              <button
-                className="btn secondary"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowCostGroupModal(true);
-                  setCostGroupModalView("accounts");
-                }}
-              >
-                Zahlungskonten bearbeiten
-              </button>
-              <button
-                className="btn secondary"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowCostGroupModal(true);
-                  setCostGroupModalView("edit");
-                }}
-              >
-                Kostengruppen bearbeiten
-              </button>
-            </div>
+            {!collapsedSections.has("household-book") && (
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button className="btn secondary" onClick={(e) => { e.stopPropagation(); setShowCostCenterModal(true); }}>
+                  Kostenträger bearbeiten
+                </button>
+                <button
+                  className="btn secondary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowCostGroupModal(true);
+                    setCostGroupModalView("accounts");
+                  }}
+                >
+                  Zahlungskonten bearbeiten
+                </button>
+                <button
+                  className="btn secondary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowCostGroupModal(true);
+                    setCostGroupModalView("edit");
+                  }}
+                >
+                  Kostengruppen bearbeiten
+                </button>
+              </div>
+            )}
           </div>
           {!collapsedSections.has("household-book") && (
           <>
@@ -4268,7 +4278,7 @@ function App() {
               }}
               title="Sektion ein-/ausblenden"
             >
-              {collapsedSections.has("settlement") ? "▶" : "▼"}
+              {collapsedSections.has("settlement") ? "⊕" : "⊖"}
             </button>
             <h2 style={{ margin: 0 }}>Verrechnung</h2>
           </div>
