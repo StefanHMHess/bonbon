@@ -3842,7 +3842,7 @@ function App() {
                 {(currentReceipt.receipt_items || []).map((item) => (
                   <div key={item.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px", paddingBottom: "8px", borderBottom: "1px solid rgba(0,0,0,0.05)", minWidth: 0 }}>
                     {/* Left column: Description and Amount */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", minWidth: 0 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", minWidth: 0, minHeight: "80px" }}>
                       {/* Row 1: Description with delete button */}
                       <div style={{ display: "flex", gap: "4px", alignItems: "center", minWidth: 0 }}>
                         <input
