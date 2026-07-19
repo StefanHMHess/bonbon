@@ -941,6 +941,11 @@ label {
     grid-column: span 2 !important;
   }
 
+  /* Receipt item layout: 1 column on mobile */
+  .receipt-item {
+    grid-template-columns: 1fr !important;
+  }
+
   .grid.two,
   .totals {
     grid-template-columns: 1fr;

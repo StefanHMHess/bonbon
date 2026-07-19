@@ -3841,7 +3841,7 @@ function App() {
 
               <div className="item-list">
                 {(currentReceipt.receipt_items || []).map((item) => (
-                  <div key={item.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px", paddingBottom: "8px", borderBottom: "1px solid rgba(0,0,0,0.05)", minWidth: 0 }}>
+                  <div key={item.id} className="receipt-item" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px", paddingBottom: "8px", borderBottom: "1px solid rgba(0,0,0,0.05)", minWidth: 0 }}>
                     {/* Left column: Description and Amount */}
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
                       {/* Row 1: Description with delete button */}
