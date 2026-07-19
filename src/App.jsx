@@ -3552,7 +3552,7 @@ function App() {
       <section className="grid two workflow-stack">
         <article className="panel">
           <div className="section-header-with-button">
-            <h2>4. Belege</h2>
+            <h2 style={{ margin: 0 }}>4. Belege</h2>
             <button
               className="btn secondary"
               onClick={() => setSelectedReceipt(null)}
