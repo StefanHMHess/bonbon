@@ -657,6 +657,62 @@ function App() {
     return { rows, overall };
   }, [receipts, costGroups]);
 
+  const costGroupYearOverview = useMemo(() => {
+    const groups = activeCostGroups();
+    const colorByName = new Map(groups.map((group) => [group.name, group.color]));
+    const year = new Date().getFullYear();
+    const monthLabels = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+    const monthlyGroupTotals = Array.from({ length: 12 }, () => new Map());
+    const monthlyTotals = Array(12).fill(0);
+    const yearlyGroupTotals = new Map();
+
+    for (const receipt of receipts) {
+      const receiptDate = parseReceiptDate(receipt);
+      if (!receiptDate || receiptDate.getFullYear() !== year) continue;
+
+      const monthIndex = receiptDate.getMonth();
+      for (const item of receipt.receipt_items || []) {
+        if (item.is_ignored === true) continue;
+
+        const amount = Number(item.amount || 0);
+        const groupName = item.category || "Ohne Kostengruppe";
+        monthlyTotals[monthIndex] += amount;
+
+        const monthMap = monthlyGroupTotals[monthIndex];
+        monthMap.set(groupName, (monthMap.get(groupName) || 0) + amount);
+        yearlyGroupTotals.set(groupName, (yearlyGroupTotals.get(groupName) || 0) + amount);
+      }
+    }
+
+    const legend = Array.from(yearlyGroupTotals.entries())
+      .map(([name, total]) => ({
+        name,
+        total,
+        color: colorByName.get(name) || "#456279",
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    const rankByName = new Map(legend.map((entry, index) => [entry.name, index]));
+    const months = monthLabels.map((label, index) => {
+      const segments = Array.from(monthlyGroupTotals[index].entries())
+        .map(([name, total]) => ({
+          name,
+          total,
+          color: colorByName.get(name) || "#456279",
+          rank: rankByName.get(name) ?? 999,
+        }))
+        .sort((a, b) => a.rank - b.rank);
+
+      return {
+        label,
+        total: monthlyTotals[index],
+        segments,
+      };
+    });
+
+    return { year, legend, months, maxMonthTotal: Math.max(...monthlyTotals, 0) };
+  }, [receipts, costGroups]);
+
   const accountTotals = useMemo(() => {
     const accounts = familyAccounts.length ? familyAccounts : [defaultFamilyAccount];
     const accountById = new Map(accounts.map((a) => [a.id, a]));
@@ -3476,8 +3532,16 @@ function App() {
                         onChange={(e) => updateCostGroupDraft(group.id, "sortOrder", e.target.value)}
                         placeholder="Sortierung"
                       />
-                      <button className="btn secondary" disabled={busy} onClick={() => saveCostGroup(group.id)}>Speichern</button>
-                      <button className="btn secondary" disabled={busy} onClick={() => deleteCostGroup(group.id)}>Löschen</button>
+                      <div className="cost-group-row-actions" style={{ gridColumn: "span 2" }}>
+                        <button className="btn secondary compact-action-btn" disabled={busy} onClick={() => saveCostGroup(group.id)}>
+                          <span className="btn-icon" aria-hidden="true">💾</span>
+                          <span className="btn-label">Speichern</span>
+                        </button>
+                        <button className="btn secondary compact-action-btn" disabled={busy} onClick={() => deleteCostGroup(group.id)}>
+                          <span className="btn-icon" aria-hidden="true">🗑️</span>
+                          <span className="btn-label">Löschen</span>
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -3507,8 +3571,12 @@ function App() {
                       onChange={(e) => setNewCostGroup((s) => ({ ...s, sortOrder: e.target.value }))}
                       placeholder="Sortierung"
                     />
-                    <button className="btn" disabled={busy} onClick={addCostGroup}>Hinzufügen</button>
-                    <span className="table-action-placeholder" aria-hidden="true" />
+                    <div className="cost-group-new-actions" style={{ gridColumn: "span 2" }}>
+                      <button className="btn compact-action-btn" disabled={busy} onClick={addCostGroup}>
+                        <span className="btn-icon" aria-hidden="true">➕</span>
+                        <span className="btn-label">Hinzufügen</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </>
@@ -3572,15 +3640,18 @@ function App() {
                         <option value="family">Familie</option>
                       </select>
                       <input
+                        className="account-sort-input"
                         type="number"
                         value={draft.sortOrder}
                         onChange={(e) => updateAccountDraft(account.id, "sortOrder", e.target.value)}
                         placeholder="Sortierung"
                       />
-                      <button className="btn secondary" disabled={busy} onClick={() => saveFamilyAccount(account.id)}>Speichern</button>
-                      <button className="btn secondary" disabled={busy || account.account_type === "family"} onClick={() => deleteFamilyAccount(account)}>
-                        Löschen
-                      </button>
+                      <div className="account-row-actions">
+                        <button className="btn secondary" disabled={busy} onClick={() => saveFamilyAccount(account.id)}>Speichern</button>
+                        <button className="btn secondary" disabled={busy || account.account_type === "family"} onClick={() => deleteFamilyAccount(account)}>
+                          Löschen
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -3607,13 +3678,15 @@ function App() {
                       <option value="family">Familie</option>
                     </select>
                     <input
+                      className="account-sort-input"
                       type="number"
                       value={newAccount.sortOrder}
                       onChange={(e) => setNewAccount((s) => ({ ...s, sortOrder: e.target.value }))}
                       placeholder="Sortierung"
                     />
-                    <button className="btn" disabled={busy} onClick={addFamilyAccount}>Hinzufügen</button>
-                    <span className="table-action-placeholder" aria-hidden="true" />
+                    <div className="account-new-actions">
+                      <button className="btn" disabled={busy} onClick={addFamilyAccount}>Hinzufügen</button>
+                    </div>
                   </div>
                 )}
               </>
@@ -3669,13 +3742,16 @@ function App() {
                         />
                       </div>
                       <input
+                        className="account-sort-input"
                         type="number"
                         value={draft.sort_order}
                         onChange={(e) => updateCostCenterDraft(center.id, "sort_order", e.target.value)}
                         placeholder="Sortierung"
                       />
-                      <button className="btn secondary" disabled={busy} onClick={() => saveCostCenter(center.id)}>Speichern</button>
-                      <button className="btn secondary" disabled={busy} onClick={() => deleteCostCenter(center.id)}>Löschen</button>
+                      <div className="account-row-actions">
+                        <button className="btn secondary" disabled={busy} onClick={() => saveCostCenter(center.id)}>Speichern</button>
+                        <button className="btn secondary" disabled={busy} onClick={() => deleteCostCenter(center.id)}>Löschen</button>
+                      </div>
                     </div>
                   );
                 })}
@@ -3694,13 +3770,15 @@ function App() {
                     />
                   </div>
                   <input
+                    className="account-sort-input"
                     type="number"
                     value={newCostCenter.sort_order}
                     onChange={(e) => setNewCostCenter((s) => ({ ...s, sort_order: e.target.value }))}
                     placeholder="Sortierung"
                   />
-                  <button className="btn" disabled={busy} onClick={addNewCostCenter}>Hinzufügen</button>
-                  <span className="table-action-placeholder" aria-hidden="true" />
+                  <div className="account-new-actions">
+                    <button className="btn" disabled={busy} onClick={addNewCostCenter}>Hinzufügen</button>
+                  </div>
                 </div>
               </>
             )}
@@ -3743,68 +3821,66 @@ function App() {
 
       <section className="grid two workflow-stack">
         <article className="panel">
-          <div className="section-header-with-button" style={{ position: "sticky", top: 0, zIndex: 11, paddingBottom: "0" }}>
-            <button
-              onClick={() => toggleSection("receipts")}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: "0",
-                display: "flex",
-                alignItems: "center",
-                fontSize: "1.1rem",
-                marginRight: "8px",
-                color: "inherit",
-              }}
-              title="Sektion ein-/ausblenden"
-            >
-              {collapsedSections.has("receipts") ? "⊕" : "⊖"}
-            </button>
-            <h2 style={{ margin: 0 }}>Belege</h2>
-          </div>
-          {!collapsedSections.has("receipts") && (
-            <>
-          
-          {currentReceipt && !collapsedSections.has("receipts") && (
-            <div className="receipt-actions" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "4px", marginBottom: "15px", padding: "2px 0", position: "sticky", top: "46px", zIndex: 10 }}>
+          <div className="receipts-sticky-palette">
+            <div className="section-header-with-button" style={{ paddingBottom: "0" }}>
               <button
-                className="btn secondary"
-                style={{ gridColumn: "span 2" }}
-                disabled={previewBusy || !currentReceipt.image_path}
-                onClick={() => openReceiptPreview(currentReceipt)}
+                onClick={() => toggleSection("receipts")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "0",
+                  display: "flex",
+                  alignItems: "center",
+                  fontSize: "1.1rem",
+                  marginRight: "8px",
+                  color: "inherit",
+                }}
+                title="Sektion ein-/ausblenden"
               >
-                {previewBusy ? "Öffne..." : "Beleg ansehen"}
+                {collapsedSections.has("receipts") ? "⊕" : "⊖"}
               </button>
-              <button
-                className="btn secondary"
-                style={{ gridColumn: "span 1" }}
-                disabled={busy}
-                onClick={() => deleteReceipt(currentReceipt)}
-              >
-                Beleg löschen
-              </button>
-              <button
-                className="btn secondary"
-                style={{ gridColumn: "span 2" }}
-                disabled={busy || !currentReceipt.image_path || !canUseApp}
-                onClick={() => retryAnalysis(currentReceipt)}
-              >
-                Erneut analysieren
-              </button>
-              <button
-                className="btn secondary"
-                style={{ gridColumn: "span 1" }}
-                onClick={() => setSelectedReceipt(null)}
-              >
-                Neuer Beleg
-              </button>
+              <h2 style={{ margin: 0 }}>Belege</h2>
             </div>
-          )}
-          
-          {/* Zahlkonto and Kostenträger below buttons */}
-          {currentReceipt && !collapsedSections.has("receipts") && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "12px", padding: "0", position: "sticky", top: "153px", zIndex: 20 }}>
+
+            {!collapsedSections.has("receipts") && currentReceipt && (
+              <>
+                <div className="receipt-actions" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "4px", marginBottom: "5px", padding: "2px 0" }}>
+                  <button
+                    className="btn secondary"
+                    style={{ gridColumn: "span 2" }}
+                    disabled={previewBusy || !currentReceipt.image_path}
+                    onClick={() => openReceiptPreview(currentReceipt)}
+                  >
+                    {previewBusy ? "Öffne..." : "Beleg ansehen"}
+                  </button>
+                  <button
+                    className="btn secondary"
+                    style={{ gridColumn: "span 1" }}
+                    disabled={busy}
+                    onClick={() => deleteReceipt(currentReceipt)}
+                  >
+                    Beleg löschen
+                  </button>
+                  <button
+                    className="btn secondary"
+                    style={{ gridColumn: "span 2" }}
+                    disabled={busy || !currentReceipt.image_path || !canUseApp}
+                    onClick={() => retryAnalysis(currentReceipt)}
+                  >
+                    Erneut analysieren
+                  </button>
+                  <button
+                    className="btn secondary"
+                    style={{ gridColumn: "span 1" }}
+                    onClick={() => setSelectedReceipt(null)}
+                  >
+                    Neuer Beleg
+                  </button>
+                </div>
+
+                {/* Zahlkonto and Kostenträger below buttons */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "12px", padding: "0" }}>
               <div className={`color-select-wrapper ${!currentReceipt.payment_account_id ? 'missing-required' : ''}`} style={{...(!currentReceipt.payment_account_id ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", height: "32px", display: "flex", alignItems: "center", padding: "0 8px" } : {...buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color), height: "32px", display: "flex", alignItems: "center", padding: "0 8px"}) }}>
                 <select
                   value={currentReceipt.payment_account_id || ""}
@@ -3838,8 +3914,35 @@ function App() {
                   ))}
                 </select>
               </div>
-            </div>
-          )}
+                </div>
+              </>
+            )}
+
+            {!collapsedSections.has("receipts") && !currentReceipt && (
+              <div className="receipt-actions" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px", marginBottom: "10px", padding: "2px 0" }}>
+                <button
+                  className="btn secondary"
+                  onClick={() => {
+                    if (receipts.length) {
+                      setSelectedReceipt(receipts[0].id);
+                    }
+                  }}
+                  disabled={!receipts.length}
+                >
+                  Abbrechen
+                </button>
+                <button
+                  className="btn secondary"
+                  onClick={() => toggleSection("receipts")}
+                >
+                  Sektion schliessen
+                </button>
+              </div>
+            )}
+          </div>
+
+          {!collapsedSections.has("receipts") && (
+            <>
           
           {/* Receipt Filters */}
           {!collapsedSections.has("receipts") && (
@@ -3894,35 +3997,47 @@ function App() {
           
           <div className="receipt-list">
             {filteredReceipts.map((receipt) => {
-              const paymentAccountColor = (paymentAccountOptions.find((a) => a.id === receipt.payment_account_id) || {}).color;
+              const paymentAccount = paymentAccountOptions.find((a) => a.id === receipt.payment_account_id);
+              const paymentAccountColor = paymentAccount?.color;
+              const paymentAccountName = paymentAccount?.name;
               const firstItemCostCenterId = receipt.receipt_items?.[0]?.assigned_cost_center_id;
-              const costCenterColor = firstItemCostCenterId ? (costCenters.find((cc) => cc.id === firstItemCostCenterId) || {}).color : null;
+              const firstItemCostCenter = firstItemCostCenterId ? costCenters.find((cc) => cc.id === firstItemCostCenterId) : null;
+              const costCenterColor = firstItemCostCenter?.color || null;
+              const costCenterName = firstItemCostCenter?.name;
               
               return (
               <button
                 key={receipt.id}
                 className={`receipt-button ${receipt.id === selectedReceipt ? "active" : ""}`}
                 onClick={() => setSelectedReceipt(receipt.id)}
-                style={receipt.payment_account_id ? buildColorInputStyle(paymentAccountColor) : {}}
+                style={{
+                  ...(receipt.payment_account_id ? buildColorInputStyle(paymentAccountColor) : {}),
+                  "--receipt-account-color": paymentAccountColor || "transparent",
+                  "--receipt-cost-center-color": costCenterColor || "transparent",
+                }}
               >
-                <div>
+                {paymentAccountColor && (
+                  <span
+                    className="receipt-corner receipt-corner-account"
+                    title={paymentAccountName || "Zahlungskonto"}
+                    aria-label={paymentAccountName || "Zahlungskonto"}
+                  />
+                )}
+                {costCenterColor && (
+                  <span
+                    className="receipt-corner receipt-corner-cost-center"
+                    title={costCenterName || "Kostenträger"}
+                    aria-label={costCenterName || "Kostenträger"}
+                  />
+                )}
+                <div className="receipt-card-content">
                   <strong>
                     {receipt.merchant || "Unbekannt"}
-                    {receipt.image_path?.toLowerCase().endsWith(".pdf") && <span className="badge-pdf">PDF</span>}
                   </strong>
                   <small>
                     {formatReceiptDateTime(receipt)}{receipt.currency && receipt.currency !== "EUR" ? ` · ${receipt.currency}` : ""}
                   </small>
-                  {receipt.id !== selectedReceipt && (
-                    <div style={{ display: "flex", gap: "6px", marginTop: "4px" }}>
-                      {paymentAccountColor && (
-                        <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: paymentAccountColor, display: "inline-block" }} title="Zahlungskonto" />
-                      )}
-                      {costCenterColor && (
-                        <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: costCenterColor, display: "inline-block" }} title="Kostenträger" />
-                      )}
-                    </div>
-                  )}
+                  {receipt.image_path?.toLowerCase().endsWith(".pdf") && <span className="receipt-pdf-badge">PDF</span>}
                 </div>
                 <div className="receipt-amounts">
                   <span className="receipt-amount-original">{formatReceiptOriginalTotal(receipt)}</span>
@@ -3943,7 +4058,7 @@ function App() {
         </article>
 
         <article className="panel">
-          <div className="section-header-with-button">
+          <div className="section-header-with-button" style={{ position: "sticky", top: 0, zIndex: 21 }}>
             <button
               onClick={() => toggleSection("receipt-items")}
               style={{
@@ -4058,40 +4173,46 @@ function App() {
                       </div>
                     </div>
                     
-                    {/* Right column: Cost Group and Cost Center */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
-                      {/* Row 1: Cost Group */}
-                      <div className={`color-select-wrapper ${!item.category ? 'missing-required' : ''}`} style={!item.category ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", height: "40px", minWidth: 0, display: "flex", alignItems: "center" } : {...buildColorInputStyle(
-                        activeCostGroups().find(g => g.name === item.category)?.color
-                      ), height: "40px", minWidth: 0, display: "flex", alignItems: "center"}}>
-                        <select
-                          className="category-input cost-group-input"
-                          value={item.category || ""}
-                          onChange={(e) => patchItem(item.id, { category: e.target.value || null })}
-                        >
-                          <option value="">- Kostengruppe -</option>
-                          {activeCostGroups().map((group) => (
-                            <option key={group.id || group.name} value={group.name}>{group.name}</option>
-                          ))}
-                        </select>
+                    {/* Right column: Cost Group and Cost Center side-by-side */}
+                    <div className="item-assignments">
+                      <div className="item-assignment">
+                        <span className="item-assignment-label">Kostengruppe</span>
+                        <div className={`color-select-wrapper ${!item.category ? 'missing-required' : ''}`} style={!item.category ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", height: "32px", minWidth: 0, display: "flex", alignItems: "center" } : {...buildColorInputStyle(
+                          activeCostGroups().find(g => g.name === item.category)?.color
+                        ), height: "32px", minWidth: 0, display: "flex", alignItems: "center"}}>
+                          <select
+                            className="category-input cost-group-input"
+                            value={item.category || ""}
+                            onChange={(e) => patchItem(item.id, { category: e.target.value || null })}
+                            style={{ width: "100%", height: "100%", fontSize: "0.85rem" }}
+                          >
+                            <option value="">- Kostengruppe -</option>
+                            {activeCostGroups().map((group) => (
+                              <option key={group.id || group.name} value={group.name}>{group.name}</option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
-                      
-                      {/* Row 2: Cost Center */}
-                      <div className={`color-select-wrapper ${!assignedCostCenterByItemId.get(item.id) ? 'missing-required' : ''}`} style={!assignedCostCenterByItemId.get(item.id) ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", height: "40px", minWidth: 0, display: "flex", alignItems: "center" } : {...buildColorInputStyle(
-                        costCenterOptions.find(cc => cc.id === assignedCostCenterByItemId.get(item.id))?.color
-                      ), height: "40px", minWidth: 0, display: "flex", alignItems: "center"}}>
-                        <select
-                          className={`category-input account-input`}
-                          value={assignedCostCenterByItemId.get(item.id) || ""}
-                          onChange={(e) => assignItemToCostCenter(item, e.target.value || null)}
-                          disabled={!costCenterOptions.length}
-                          title="Kostenträger"
-                        >
-                          <option value="">- Kostenträger -</option>
-                          {costCenterOptions.map((costCenter) => (
-                            <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
-                          ))}
-                        </select>
+
+                      <div className="item-assignment">
+                        <span className="item-assignment-label">Kostenträger</span>
+                        <div className={`color-select-wrapper ${!assignedCostCenterByItemId.get(item.id) ? 'missing-required' : ''}`} style={!assignedCostCenterByItemId.get(item.id) ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", height: "32px", minWidth: 0, display: "flex", alignItems: "center" } : {...buildColorInputStyle(
+                          costCenterOptions.find(cc => cc.id === assignedCostCenterByItemId.get(item.id))?.color
+                        ), height: "32px", minWidth: 0, display: "flex", alignItems: "center"}}>
+                          <select
+                            className={`category-input account-input`}
+                            value={assignedCostCenterByItemId.get(item.id) || ""}
+                            onChange={(e) => assignItemToCostCenter(item, e.target.value || null)}
+                            disabled={!costCenterOptions.length}
+                            title="Kostenträger"
+                            style={{ width: "100%", height: "100%", fontSize: "0.85rem" }}
+                          >
+                            <option value="">- Kostenträger -</option>
+                            {costCenterOptions.map((costCenter) => (
+                              <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -4202,8 +4323,8 @@ function App() {
             }
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div className="household-header-title-row">
+            <div className="household-header-left">
               <button
                 onClick={(e) => { e.stopPropagation(); toggleSection("household-book"); }}
                 style={{
@@ -4222,8 +4343,10 @@ function App() {
               </button>
               <h2 style={{ margin: 0 }}>Haushaltsbuch</h2>
             </div>
+          </div>
+          <div className="household-header-actions-row">
             {!collapsedSections.has("household-book") && (
-              <div style={{ display: "flex", gap: "8px" }}>
+              <div className="household-header-actions">
                 <button className="btn secondary" onClick={(e) => { e.stopPropagation(); setShowCostCenterModal(true); }}>
                   Kostenträger bearbeiten
                 </button>
@@ -4257,6 +4380,48 @@ function App() {
               <span>Gesamtausgaben:</span>
               <strong>{euro.format(mainAccountTotal)}</strong>
             </div>
+          </div>
+
+          <div className="cost-group-summary year-overview-summary">
+            <h3>Jahresübersicht {costGroupYearOverview.year}</h3>
+            {!costGroupYearOverview.maxMonthTotal && <p className="hint">Noch keine Ausgaben im laufenden Jahr vorhanden.</p>}
+            {!!costGroupYearOverview.maxMonthTotal && (
+              <div className="year-overview-chart-wrap">
+                <div className="year-overview-chart" role="img" aria-label={`Jahresübersicht ${costGroupYearOverview.year}, gestapelte Monatsbalken nach Kostengruppen`}>
+                  {costGroupYearOverview.months.map((month) => (
+                    <div className="year-overview-month" key={month.label}>
+                      <div className="year-overview-bar" title={`${month.label}: ${euro.format(month.total)}`}>
+                        {month.segments.length ? month.segments.map((segment) => {
+                          const height = costGroupYearOverview.maxMonthTotal > 0 ? (segment.total / costGroupYearOverview.maxMonthTotal) * 100 : 0;
+                          return (
+                            <span
+                              key={`${month.label}-${segment.name}`}
+                              className="year-overview-segment"
+                              style={{ height: `${Math.max(height, 0)}%`, backgroundColor: segment.color }}
+                              title={`${month.label} · ${segment.name}: ${euro.format(segment.total)}`}
+                              aria-label={`${month.label} · ${segment.name}: ${euro.format(segment.total)}`}
+                            />
+                          );
+                        }) : <span className="year-overview-empty" />}
+                      </div>
+                      <div className="year-overview-month-label">{month.label}</div>
+                      <div className="year-overview-month-total">{euro.format(month.total)}</div>
+                    </div>
+                  ))}
+                </div>
+                {!!costGroupYearOverview.legend.length && (
+                  <div className="year-overview-legend">
+                    {costGroupYearOverview.legend.map((entry) => (
+                      <div className="year-overview-legend-item" key={entry.name}>
+                        <span className="cost-group-dot" style={{ backgroundColor: entry.color }} />
+                        <span className="year-overview-legend-name">{entry.name}</span>
+                        <strong>{euro.format(entry.total)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="cost-group-summary">
@@ -4303,7 +4468,7 @@ function App() {
         </article>
 
         <article className="panel">
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+          <div className="settlement-header-row">
             <button
               onClick={(e) => { e.stopPropagation(); toggleSection("settlement"); }}
               style={{

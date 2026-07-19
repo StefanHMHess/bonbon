@@ -12,7 +12,7 @@
   --main-deep: #0f9f8d;
   --gift-deep: #eb5a46;
   --shadow: 0 20px 40px rgba(16, 36, 62, 0.12);
-  --cost-group-grid-columns: 1.6fr 0.9fr 1.8fr 0.7fr 116px 116px;
+  --cost-group-grid-columns: 1.5fr 0.8fr 2.4fr 0.28fr 108px 108px;
   --account-grid-columns: 1.2fr 0.9fr 0.9fr 0.7fr 116px 116px;
 }
 
@@ -347,6 +347,93 @@ label {
   border-top: 1px dashed var(--line);
 }
 
+.year-overview-summary {
+  margin-top: 16px;
+}
+
+.year-overview-chart-wrap {
+  display: grid;
+  gap: 12px;
+}
+
+.year-overview-chart {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(56px, 1fr));
+  gap: 8px;
+  align-items: end;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.year-overview-month {
+  display: grid;
+  gap: 6px;
+  justify-items: stretch;
+  min-width: 56px;
+}
+
+.year-overview-bar {
+  height: 180px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 255, 253, 0.72));
+  display: flex;
+  flex-direction: column-reverse;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+
+.year-overview-segment {
+  display: block;
+  width: 100%;
+  min-height: 1px;
+}
+
+.year-overview-empty {
+  display: block;
+  flex: 1;
+  background: linear-gradient(180deg, rgba(16, 36, 62, 0.04), rgba(16, 36, 62, 0.02));
+}
+
+.year-overview-month-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.year-overview-month-total {
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.year-overview-legend {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.year-overview-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f8fffd;
+  padding: 8px 10px;
+  min-width: 0;
+}
+
+.year-overview-legend-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .cost-group-summary h3 {
   margin-bottom: 8px;
 }
@@ -382,6 +469,15 @@ label {
 .cost-group-summary-actions {
   margin-top: 10px;
 }
+
+  .year-overview-chart {
+    grid-template-columns: repeat(12, minmax(44px, 1fr));
+    gap: 6px;
+  }
+
+  .year-overview-bar {
+    height: 150px;
+  }
 
 .clickable-summary {
   cursor: pointer;
@@ -465,6 +561,53 @@ label {
   margin-top: 0;
 }
 
+.cost-group-row-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.account-row-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  grid-column: span 2;
+}
+
+.account-row-actions .btn {
+  width: 100%;
+}
+
+.account-new-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  grid-column: span 2;
+}
+
+.account-new-actions .btn {
+  width: 100%;
+}
+
+.cost-group-new-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.compact-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.btn-icon {
+  font-size: 0.95em;
+  line-height: 1;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -522,8 +665,17 @@ label {
 .receipt-list {
   display: grid;
   gap: 8px;
-  max-height: 430px;
-  overflow: auto;
+}
+
+.receipts-sticky-palette {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: transparent;
+  backdrop-filter: none;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+  border-bottom: none;
 }
 
 .receipt-button {
@@ -541,11 +693,12 @@ label {
   align-items: flex-start;
   min-width: 0;
   position: relative;
+  overflow: hidden;
 }
 
 .receipt-button:not(.active) {
-  background: rgba(248, 255, 253, 0.5);
-  color: #10243e;
+  background: rgba(248, 255, 253, 0.02);
+  box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.8);
 }
 
 .receipt-button:not(.active) small,
@@ -554,18 +707,57 @@ label {
   color: #10243e;
 }
 
-.receipt-button:not(.active)::before {
-  content: '';
+.receipt-card-content {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  padding-right: 44px;
+  z-index: 2;
+}
+
+.receipt-card-content strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.receipt-pdf-badge {
   position: absolute;
   top: 0;
+  right: 0;
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  background: var(--main);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  vertical-align: middle;
+  pointer-events: none;
+}
+
+.receipt-corner {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  pointer-events: auto;
+  opacity: 1;
+  z-index: 1;
+}
+
+.receipt-corner-account {
+  top: 0;
   left: 0;
+  background: var(--receipt-account-color, transparent);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+
+.receipt-corner-cost-center {
   right: 0;
   bottom: 0;
-  background: rgba(255, 255, 255, 0.85);
-  border-radius: 12px;
-  pointer-events: none;
-  transition: opacity 0.2s ease;
-  z-index: 1;
+  background: var(--receipt-cost-center-color, transparent);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
 }
 
 .receipt-amounts {
@@ -698,6 +890,29 @@ label {
 
 .receipt-actions .btn {
   margin-top: 0;
+}
+
+.item-assignments {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  min-width: 0;
+  align-items: start;
+}
+
+.item-assignment {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.item-assignment-label {
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  font-weight: 700;
+  line-height: 1;
+  padding-left: 2px;
+  white-space: nowrap;
 }
 
 .item-row {
@@ -855,6 +1070,54 @@ label {
   white-space: nowrap;
 }
 
+.household-header-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 22;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 6px 0 8px;
+  border-bottom: 1px solid rgba(16, 36, 62, 0.08);
+}
+
+.household-header-actions-row {
+  margin-bottom: 12px;
+}
+
+.settlement-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 22;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 6px 0 8px;
+  border-bottom: 1px solid rgba(16, 36, 62, 0.08);
+}
+
+.household-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.household-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.household-header-actions .btn {
+  margin-top: 0;
+}
+
 /* Mark missing required fields */
 .missing-required {
   border-color: #e74c3c !important;
@@ -935,6 +1198,31 @@ label {
     grid-column: span 2 !important;
   }
 
+  .household-header-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .household-header-title-row {
+    align-items: center;
+  }
+
+  .settlement-header-row {
+    align-items: center;
+  }
+
+  .household-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .household-header-actions .btn {
+    flex: 1 1 100%;
+    min-width: 0;
+    text-align: center;
+  }
+
   /* Receipt item layout: 1 column on mobile */
   .receipt-item {
     grid-template-columns: 1fr !important;
@@ -1010,17 +1298,91 @@ label {
 }
 
 @media (max-width: 640px) {
-  .cost-group-edit-row,
-  .cost-group-new-row,
+  .modal-backdrop {
+    padding: 4px;
+  }
+
+  .modal-panel {
+    width: 100vw;
+    max-width: none;
+    max-height: 96vh;
+    border-radius: 12px;
+    padding: 10px;
+  }
+
   .cost-group-edit-head,
-  .account-edit-row,
-  .account-edit-head,
-  .account-new-row {
+  .account-edit-head {
     grid-template-columns: 1fr;
   }
 
-  .detail-stats-grid {
+  .cost-group-edit-row,
+  .cost-group-new-row {
+    grid-template-columns: 3fr 1fr;
+  }
+
+  .account-edit-row,
+  .account-new-row {
+    grid-template-columns: 3fr 1fr;
+  }
+
+  .account-sort-input {
+    grid-column: 2;
+  }
+
+  .cost-group-edit-head {
+    display: none;
+  }
+
+  .account-edit-head {
+    display: none;
+  }
+
+  .cost-group-edit-row,
+  .cost-group-new-row {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #f8fffd;
+    padding: 8px;
+    margin-bottom: 10px;
+  }
+
+  .account-edit-row,
+  .account-new-row {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #f8fffd;
+    padding: 8px;
+    margin-bottom: 10px;
+  }
+
+  .cost-group-row-actions {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .account-row-actions {
+    grid-column: 1 / -1;
+    gap: 6px;
+  }
+
+  .account-new-actions {
+    grid-column: 1 / -1;
+    gap: 6px;
+  }
+
+  .cost-group-new-actions {
     grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .compact-action-btn {
+    min-height: 32px;
+    padding: 6px 8px;
+    font-size: 0.82rem;
+  }
+
+  .compact-action-btn .btn-label {
+    display: none;
   }
 
   .detail-table-head {
