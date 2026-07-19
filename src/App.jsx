@@ -3176,7 +3176,7 @@ function App() {
                 {costGroupModalView === "groupDetails" && "Detaillierte Übersicht nach Kostengruppen"}
                 {costGroupModalView === "accountDetails" && "Detaillierte Übersicht nach Kostenträgern"}
                 {costGroupModalView === "edit" && "Kostengruppen bearbeiten"}
-                {costGroupModalView === "accounts" && "Kostenträger bearbeiten"}
+                {costGroupModalView === "accounts" && "Zahlungskonten bearbeiten"}
               </h3>
               <button className="btn secondary" onClick={() => setShowCostGroupModal(false)}>Schließen</button>
             </div>
@@ -4013,7 +4013,7 @@ function App() {
                   setCostGroupModalView("accounts");
                 }}
               >
-                Konten bearbeiten
+                Zahlungskonten bearbeiten
               </button>
               <button
                 className="btn secondary"
