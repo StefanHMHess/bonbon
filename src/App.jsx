@@ -3593,29 +3593,6 @@ function App() {
       {error && <p className="hint error">{error}</p>}
       {success && <p className="hint success">{success}</p>}
 
-      {currentReceipt && (
-        <article className="panel">
-          <h2>2b. Kostenträger für Positionen</h2>
-          <div className={`color-select-wrapper ${!selectedCostCenterForReceipt ? 'missing-required' : ''}`} style={!selectedCostCenterForReceipt ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((costCenterOptions.find((cc) => cc.id === selectedCostCenterForReceipt) || {}).color)}>
-            <select
-              value={selectedCostCenterForReceipt || ""}
-              onChange={(e) => {
-                setSelectedCostCenterForReceipt(e.target.value || null);
-                if (e.target.value) {
-                  changeCostCenterForAllItems(e.target.value);
-                }
-              }}
-              disabled={busy}
-            >
-              <option value="">-- Wähle Kostenträger --</option>
-              {costCenterOptions.map((costCenter) => (
-                <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
-              ))}
-            </select>
-          </div>
-        </article>
-      )}
-
       <section className="grid two workflow-stack">
         <article className="panel">
           <div className="section-header-with-button">
@@ -3659,7 +3636,7 @@ function App() {
           </div>
           
           {currentReceipt && (
-            <div className="receipt-actions">
+            <div className="receipt-actions" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
               <button
                 className="btn secondary"
                 disabled={busy || !currentReceipt.image_path || !canUseApp}
@@ -3674,19 +3651,6 @@ function App() {
               >
                 {previewBusy ? "Öffne..." : "Beleg ansehen"}
               </button>
-              <div className="color-select-wrapper" style={buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color)}>
-                <select
-                  value={currentReceipt.payment_account_id || ""}
-                  onChange={(e) => patchReceipt(currentReceipt.id, { payment_account_id: e.target.value || null })}
-                  disabled={busy}
-                  title="Zahlungskonto"
-                >
-                  <option value="">-- Zahlungskonto --</option>
-                  {paymentAccountOptions.map((account) => (
-                    <option key={account.id} value={account.id}>{account.name}</option>
-                  ))}
-                </select>
-              </div>
               <button
                 className="btn secondary"
                 disabled={busy}
@@ -3694,6 +3658,39 @@ function App() {
               >
                 Beleg löschen
               </button>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                <div className="color-select-wrapper" style={buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color)}>
+                  <select
+                    value={currentReceipt.payment_account_id || ""}
+                    onChange={(e) => patchReceipt(currentReceipt.id, { payment_account_id: e.target.value || null })}
+                    disabled={busy}
+                    title="Zahlungskonto"
+                  >
+                    <option value="">-- Zahlungskonto --</option>
+                    {paymentAccountOptions.map((account) => (
+                      <option key={account.id} value={account.id}>{account.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="color-select-wrapper" style={buildColorInputStyle((costCenterOptions.find((cc) => cc.id === selectedCostCenterForReceipt) || {}).color)}>
+                  <select
+                    value={selectedCostCenterForReceipt || ""}
+                    onChange={(e) => {
+                      setSelectedCostCenterForReceipt(e.target.value || null);
+                      if (e.target.value) {
+                        changeCostCenterForAllItems(e.target.value);
+                      }
+                    }}
+                    disabled={busy}
+                    title="Kostenträger"
+                  >
+                    <option value="">-- Kostenträger --</option>
+                    {costCenterOptions.map((costCenter) => (
+                      <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
           )}
           <div className="receipt-list">
