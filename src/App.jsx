@@ -3649,34 +3649,37 @@ function App() {
         </article>
 
         <article className="panel">
-          <div className="section-header-with-button">
-            <h2>5. Positionen Beleg</h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <button
-                className="btn secondary"
-                disabled={busy || !currentReceipt?.receipt_items?.length}
-                onClick={() => autoAssignCategories(currentReceipt)}
-              >
-                Kostengruppen zuordnen
-              </button>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "12px", marginBottom: "12px", alignItems: "start" }}>
+            <h2 style={{ margin: 0 }}>5. Positionen Beleg</h2>
+            <button
+              className="btn secondary"
+              disabled={busy || !currentReceipt?.receipt_items?.length}
+              onClick={() => autoAssignCategories(currentReceipt)}
+            >
+              Kostengruppen zuordnen
+            </button>
+          </div>
+          
+          {currentReceipt && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "12px", alignItems: "center", marginBottom: "12px" }}>
+              <div className="receipt-info" style={{ margin: 0 }}>
+                <strong>{currentReceipt.merchant || "Unbekannt"}</strong>
+                <small>{formatReceiptDateTime(currentReceipt)}</small>
+              </div>
               <button
                 className="btn secondary"
                 disabled={busy || !currentReceipt?.receipt_items?.length}
                 onClick={() => transferCostCenterToAll(currentReceipt)}
                 title="Kostenträger der ersten Position auf alle übertragen"
               >
-                Kostenträger
+                Kostenträg. übernehm.
               </button>
             </div>
-          </div>
+          )}
+
           {!currentReceipt && <p className="hint">Wähle oben einen Beleg aus.</p>}
           {currentReceipt && (
             <>
-              <div className="receipt-info">
-                <strong>{currentReceipt.merchant || "Unbekannt"}</strong>
-                <small>{formatReceiptDateTime(currentReceipt)}</small>
-              </div>
-
               {!receiptItemCurrencyColumnsReady && (
                 <p className="hint warning">
                   Währungsänderungen sind erst nach der Migration verfügbar. Aktuell werden Positionen als EUR geführt.
