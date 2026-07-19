@@ -3857,7 +3857,7 @@ function App() {
                           disabled={busy}
                           onClick={() => deleteReceiptItem(item)}
                           title="Position löschen"
-                          style={{ padding: "4px 6px", minWidth: "32px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                          style={{ padding: "4px 6px", minWidth: "32px", height: "40px", display: "flex", alignItems: "flex-start", justifyContent: "center", flexShrink: 0, paddingTop: "2px" }}
                         >
                           🗑️
                         </button>
