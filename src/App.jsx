@@ -4155,7 +4155,25 @@ function App() {
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-            <h2 style={{ margin: 0 }}>Haushaltsbuch</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <button
+                onClick={() => toggleSection("household-book")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "0",
+                  display: "flex",
+                  alignItems: "center",
+                  fontSize: "1.1rem",
+                  color: "inherit",
+                }}
+                title="Sektion ein-/ausblenden"
+              >
+                {collapsedSections.has("household-book") ? "▶" : "▼"}
+              </button>
+              <h2 style={{ margin: 0 }}>Haushaltsbuch</h2>
+            </div>
             <div style={{ display: "flex", gap: "8px" }}>
               <button className="btn secondary" onClick={(e) => { e.stopPropagation(); setShowCostCenterModal(true); }}>
                 Kostenträger bearbeiten
@@ -4182,6 +4200,8 @@ function App() {
               </button>
             </div>
           </div>
+          {!collapsedSections.has("household-book") && (
+          <>
           <div className="totals">
             <div className="total-card main">
               <span>Gesamtausgaben:</span>
@@ -4228,10 +4248,32 @@ function App() {
           <div className="cost-group-summary-actions">
             <p className="hint">Tippe in diese Karte, um die Liste der Kostengruppen zu öffnen.</p>
           </div>
+          </>
+          )}
         </article>
 
         <article className="panel">
-          <h2>Verrechnung</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+            <button
+              onClick={() => toggleSection("settlement")}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: "0",
+                display: "flex",
+                alignItems: "center",
+                fontSize: "1.1rem",
+                color: "inherit",
+              }}
+              title="Sektion ein-/ausblenden"
+            >
+              {collapsedSections.has("settlement") ? "▶" : "▼"}
+            </button>
+            <h2 style={{ margin: 0 }}>Verrechnung</h2>
+          </div>
+          {!collapsedSections.has("settlement") && (
+          <>
           <div className="totals">
             <div className="total-card main">
               <span>Gesamtausgaben:</span>
@@ -4453,6 +4495,8 @@ function App() {
               );
             })()}
           </div>
+          </>
+          )}
         </article>
       </section>
     </div>
