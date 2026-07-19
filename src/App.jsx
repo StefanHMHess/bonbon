@@ -3651,21 +3651,21 @@ function App() {
         <article className="panel">
           <div className="section-header-with-button">
             <h2>5. Positionen Beleg</h2>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                className="btn secondary"
-                disabled={busy || !currentReceipt?.receipt_items?.length}
-                onClick={() => transferCostCenterToAll(currentReceipt)}
-                title="Kostenträger der ersten Position auf alle übertragen"
-              >
-                Kostentr. überн.
-              </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               <button
                 className="btn secondary"
                 disabled={busy || !currentReceipt?.receipt_items?.length}
                 onClick={() => autoAssignCategories(currentReceipt)}
               >
                 Kostengruppen zuordnen
+              </button>
+              <button
+                className="btn secondary"
+                disabled={busy || !currentReceipt?.receipt_items?.length}
+                onClick={() => transferCostCenterToAll(currentReceipt)}
+                title="Kostenträger der ersten Position auf alle übertragen"
+              >
+                Kostenträger
               </button>
             </div>
           </div>
