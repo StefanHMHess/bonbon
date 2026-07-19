@@ -3627,7 +3627,7 @@ function App() {
       <section className="grid two workflow-stack">
         <article className="panel">
           <div className="section-header-with-button">
-            <h2 style={{ margin: 0 }}>4. Belege</h2>
+            <h2 style={{ margin: 0 }}>Belege</h2>
             <button
               className="btn secondary"
               onClick={() => setSelectedReceipt(null)}
@@ -3764,7 +3764,7 @@ function App() {
 
         <article className="panel">
           <div className="section-header-with-button">
-            <h2 style={{ margin: 0 }}>5. Positionen Beleg</h2>
+            <h2 style={{ margin: 0 }}>Positionen Beleg</h2>
             <button
               className="btn secondary"
               disabled={busy || !currentReceipt?.receipt_items?.length}
@@ -4000,7 +4000,7 @@ function App() {
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-            <h2 style={{ margin: 0 }}>6. Haushaltsbuch</h2>
+            <h2 style={{ margin: 0 }}>Haushaltsbuch</h2>
             <div style={{ display: "flex", gap: "8px" }}>
               <button className="btn secondary" onClick={(e) => { e.stopPropagation(); setShowCostCenterModal(true); }}>
                 Kostenträger bearbeiten
@@ -4076,7 +4076,7 @@ function App() {
         </article>
 
         <article className="panel">
-          <h2>7. Verrechnung</h2>
+          <h2>Verrechnung</h2>
           <div className="totals">
             <div className="total-card main">
               <span>Gesamtausgaben:</span>
