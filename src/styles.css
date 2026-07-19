@@ -875,7 +875,7 @@ label {
   grid-area: desc;
   min-height: auto;
   resize: vertical;
-  padding: 0;
+  padding: 0 4px;
   font-family: inherit;
   line-height: 1.4;
   box-sizing: border-box;
