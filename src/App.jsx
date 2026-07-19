@@ -3649,8 +3649,8 @@ function App() {
         </article>
 
         <article className="panel">
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "12px", marginBottom: "12px", alignItems: "start" }}>
-            <h2 style={{ margin: 0 }}>5. Positionen Beleg</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "12px", marginBottom: "4px", alignItems: "start" }}>
+            <h2 style={{ margin: 0, marginTop: -2 }}>5. Positionen Beleg</h2>
             <button
               className="btn secondary"
               disabled={busy || !currentReceipt?.receipt_items?.length}
