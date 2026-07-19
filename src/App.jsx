@@ -3926,35 +3926,34 @@ function App() {
             </button>
             <h2 style={{ margin: 0 }}>Positionen Beleg</h2>
           </div>
-          {!collapsedSections.has("receipt-items") && (
-            <button
-              className="btn secondary"
-              disabled={busy || !currentReceipt?.receipt_items?.length}
-              onClick={() => autoAssignCategories(currentReceipt)}
-              style={{ padding: "6px 8px", fontSize: "0.85rem", marginBottom: "12px" }}
-            >
-              Kostengruppen zuordnen
-            </button>
-          )}
-          {!collapsedSections.has("receipt-items") && (
-            <>
-          
-          {currentReceipt && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "12px", alignItems: "center", marginBottom: "12px" }}>
+          {!collapsedSections.has("receipt-items") && currentReceipt && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "12px", alignItems: "flex-start", marginBottom: "12px" }}>
               <div className="receipt-info" style={{ margin: 0 }}>
                 <strong>{currentReceipt.merchant || "Unbekannt"}</strong>
                 <small>{formatReceiptDateTime(currentReceipt)}</small>
               </div>
-              <button
-                className="btn secondary"
-                disabled={busy || !currentReceipt?.receipt_items?.length}
-                onClick={() => transferCostCenterToAll(currentReceipt)}
-                title="Kostenträger der ersten Position auf alle übertragen"
-              >
-                Kostenträg. übernehm.
-              </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <button
+                  className="btn secondary"
+                  disabled={busy || !currentReceipt?.receipt_items?.length}
+                  onClick={() => autoAssignCategories(currentReceipt)}
+                  style={{ padding: "6px 8px", fontSize: "0.85rem" }}
+                >
+                  Kostengruppen zuordnen
+                </button>
+                <button
+                  className="btn secondary"
+                  disabled={busy || !currentReceipt?.receipt_items?.length}
+                  onClick={() => transferCostCenterToAll(currentReceipt)}
+                  title="Kostenträger der ersten Position auf alle übertragen"
+                >
+                  Kostenträg. übernehm.
+                </button>
+              </div>
             </div>
           )}
+          {!collapsedSections.has("receipt-items") && (
+            <>
 
           {!currentReceipt && <p className="hint">Wähle oben einen Beleg aus.</p>}
           {currentReceipt && (
