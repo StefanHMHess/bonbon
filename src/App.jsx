@@ -3048,7 +3048,7 @@ function App() {
           {!currentReceipt && <p className="hint">Wähle oben einen Beleg aus.</p>}
           {currentReceipt && (
             <div>
-              <div className={`color-select-wrapper ${!currentReceipt.payment_account_id ? 'missing-required' : ''}`} style={buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color)}>
+              <div className={`color-select-wrapper ${!currentReceipt.payment_account_id ? 'missing-required' : ''}`} style={!currentReceipt.payment_account_id ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color)}>
                 <select
                   value={currentReceipt.payment_account_id || ""}
                   onChange={(e) => patchReceipt(currentReceipt.id, { payment_account_id: e.target.value || null })}
