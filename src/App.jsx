@@ -127,16 +127,31 @@ function sumItems(receipts) {
 
 function formatReceiptDateTime(receipt) {
   if (receipt?.receipt_date) {
-    const baseTime = `${receipt.receipt_date}T`;
-    const aiTime = receipt?.receipt_time || receipt?.ai_raw_json?.receiptTime || null;
-    if (aiTime) {
-      return dateTimeDE.format(new Date(`${baseTime}${aiTime}:00`));
+    const aiTimeRaw = String(receipt?.receipt_time || receipt?.ai_raw_json?.receiptTime || "").trim();
+    const parsedDateOnly = new Date(receipt.receipt_date);
+
+    if (aiTimeRaw) {
+      const normalizedTime = aiTimeRaw.match(/^\d{2}:\d{2}:\d{2}$/)
+        ? aiTimeRaw
+        : (aiTimeRaw.match(/^\d{2}:\d{2}$/) ? `${aiTimeRaw}:00` : "");
+      if (normalizedTime) {
+        const parsedDateTime = new Date(`${receipt.receipt_date}T${normalizedTime}`);
+        if (!Number.isNaN(parsedDateTime.getTime())) {
+          return dateTimeDE.format(parsedDateTime);
+        }
+      }
     }
-    return dateDE.format(new Date(receipt.receipt_date));
+
+    if (!Number.isNaN(parsedDateOnly.getTime())) {
+      return dateDE.format(parsedDateOnly);
+    }
   }
 
   if (receipt?.created_at) {
-    return dateTimeDE.format(new Date(receipt.created_at));
+    const parsedCreated = new Date(receipt.created_at);
+    if (!Number.isNaN(parsedCreated.getTime())) {
+      return dateTimeDE.format(parsedCreated);
+    }
   }
 
   return "-";
@@ -372,6 +387,34 @@ function getRateLimitBackoffMs(errorMessage) {
   return MAGIC_LINK_RATE_LIMIT_BACKOFF_MS;
 }
 
+function safeStorageGet(key, fallback = "") {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const value = window.localStorage.getItem(key);
+    return value ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function safeStorageSet(key, value) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, String(value));
+  } catch {
+    // Ignore storage errors in restricted browser modes.
+  }
+}
+
+function safeStorageRemove(key) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Ignore storage errors in restricted browser modes.
+  }
+}
+
 function App() {
   const householdId = defaultHouseholdId;
   const [receipts, setReceipts] = useState([]);
@@ -399,8 +442,7 @@ function App() {
   const [newReceiptCostCenterId, setNewReceiptCostCenterId] = useState(null); // Kostenträger (wer trägt die Kosten)
   const [newPaymentAccountId, setNewPaymentAccountId] = useState(null); // Zahlungskonto für neuen Beleg
   const [authEmail, setAuthEmail] = useState(() => {
-    if (typeof window === "undefined") return "";
-    return window.localStorage.getItem(AUTH_EMAIL_STORAGE_KEY) || "";
+    return safeStorageGet(AUTH_EMAIL_STORAGE_KEY, "");
   });
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -408,8 +450,7 @@ function App() {
   const [approvalStatus, setApprovalStatus] = useState("signed_out");
   const [verifiedEmail, setVerifiedEmail] = useState("");
   const [magicLinkCooldownUntil, setMagicLinkCooldownUntil] = useState(() => {
-    if (typeof window === "undefined") return 0;
-    const raw = Number(window.localStorage.getItem(MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY) || 0);
+    const raw = Number(safeStorageGet(MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY, 0));
     return Number.isFinite(raw) ? raw : 0;
   });
   const [magicLinkNow, setMagicLinkNow] = useState(() => Date.now());
@@ -537,9 +578,7 @@ function App() {
     if (!magicLinkCooldownUntil) return;
     if (magicLinkCooldownUntil > Date.now()) return;
     setMagicLinkCooldownUntil(0);
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY);
-    }
+    safeStorageRemove(MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY);
   }, [magicLinkCooldownUntil, magicLinkNow]);
 
   const mainAccountTotal = useMemo(() => sumItems(receipts), [receipts]);
@@ -861,12 +900,11 @@ function App() {
   const displayEmail = session?.user?.email || verifiedEmail || "";
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
     if (!authEmail) {
-      window.localStorage.removeItem(AUTH_EMAIL_STORAGE_KEY);
+      safeStorageRemove(AUTH_EMAIL_STORAGE_KEY);
       return;
     }
-    window.localStorage.setItem(AUTH_EMAIL_STORAGE_KEY, String(authEmail || "").trim().toLowerCase());
+    safeStorageSet(AUTH_EMAIL_STORAGE_KEY, String(authEmail || "").trim().toLowerCase());
   }, [authEmail]);
 
   async function getExchangeRateToEur(currency) {
@@ -1124,8 +1162,7 @@ function App() {
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase || session?.user) return;
-    if (typeof window === "undefined") return;
-    const rememberedEmail = window.localStorage.getItem(VERIFIED_EMAIL_STORAGE_KEY);
+    const rememberedEmail = safeStorageGet(VERIFIED_EMAIL_STORAGE_KEY, "");
     if (!rememberedEmail) return;
 
     setAuthEmail((prev) => prev || rememberedEmail);
@@ -1259,9 +1296,7 @@ function App() {
         const until = Date.now() + getRateLimitBackoffMs(rawMessage);
         setMagicLinkNow(Date.now());
         setMagicLinkCooldownUntil(until);
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY, String(until));
-        }
+        safeStorageSet(MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY, until);
         setError("E-Mail-Limit bei Supabase erreicht. Ohne Custom SMTP sind oft nur wenige Mails pro Stunde erlaubt. Bitte später erneut versuchen oder SMTP aktivieren.");
       } else {
         setError(rawMessage);
@@ -1272,9 +1307,7 @@ function App() {
     const until = Date.now() + MAGIC_LINK_COOLDOWN_MS;
     setMagicLinkNow(Date.now());
     setMagicLinkCooldownUntil(until);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY, String(until));
-    }
+    safeStorageSet(MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY, until);
 
     const approved = await verifyApprovedEmail(value, true);
 
@@ -1303,7 +1336,7 @@ function App() {
     }
 
     const isBypassEmail = email === ONE_TIME_BYPASS_EMAIL;
-    const bypassAlreadyUsed = typeof window !== "undefined" && window.localStorage.getItem(ONE_TIME_BYPASS_USED_STORAGE_KEY) === "1";
+    const bypassAlreadyUsed = safeStorageGet(ONE_TIME_BYPASS_USED_STORAGE_KEY, "") === "1";
 
     if (isBypassEmail && !bypassAlreadyUsed) {
       if (!silent) {
@@ -1317,10 +1350,8 @@ function App() {
         status: "approved",
         is_admin: false,
       }));
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(VERIFIED_EMAIL_STORAGE_KEY, email);
-        window.localStorage.setItem(ONE_TIME_BYPASS_USED_STORAGE_KEY, "1");
-      }
+      safeStorageSet(VERIFIED_EMAIL_STORAGE_KEY, email);
+      safeStorageSet(ONE_TIME_BYPASS_USED_STORAGE_KEY, "1");
       if (!silent) {
         setSuccess("Einmal-Freigabe aktiv. Du kannst jetzt fortfahren.");
       }
@@ -1341,9 +1372,7 @@ function App() {
     const approvalRow = Array.isArray(data) ? data[0] : data;
 
     if (!approvalRow?.approved) {
-      if (typeof window !== "undefined") {
-        window.localStorage.removeItem(VERIFIED_EMAIL_STORAGE_KEY);
-      }
+      safeStorageRemove(VERIFIED_EMAIL_STORAGE_KEY);
       if (!silent) setError("Diese E-Mail ist noch nicht freigegeben.");
       return false;
     }
@@ -1356,9 +1385,7 @@ function App() {
       status: "approved",
       is_admin: Boolean(approvalRow?.is_admin),
     }));
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(VERIFIED_EMAIL_STORAGE_KEY, email);
-    }
+    safeStorageSet(VERIFIED_EMAIL_STORAGE_KEY, email);
 
     if (session?.user && approvalRow?.is_admin) {
       await loadPendingUsers();
@@ -1383,9 +1410,7 @@ function App() {
     setVerifiedEmail("");
     setPendingUsers([]);
     setSuccess("");
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(VERIFIED_EMAIL_STORAGE_KEY);
-    }
+    safeStorageRemove(VERIFIED_EMAIL_STORAGE_KEY);
   }
 
   async function loadUserAccess(user) {
@@ -1571,9 +1596,11 @@ function App() {
         // Need to check after allocations load, so just show count
         return item.id;
       }).length || 0;
-      console.log(`  Receipt ${i} (${receipt.merchant}, ${receipt.payment_account_id.slice(0, 8)}...): ${receipt.receipt_items?.length || 0} items`);
+      const accountIdPreview = String(receipt?.payment_account_id || "none").slice(0, 8);
+      console.log(`  Receipt ${i} (${receipt.merchant}, ${accountIdPreview}...): ${receipt.receipt_items?.length || 0} items`);
       receipt.receipt_items?.forEach((item, j) => {
-        console.log(`    Item ${j}: ${item.id.slice(0, 8)}... = ${item.description} (${item.amount} ${item.currency})`);
+        const itemIdPreview = String(item?.id || "no-id").slice(0, 8);
+        console.log(`    Item ${j}: ${itemIdPreview}... = ${item.description} (${item.amount} ${item.currency})`);
       });
     });
   }
@@ -2269,100 +2296,108 @@ function App() {
     setError("");
     setSuccess("");
 
-    const ext = selectedFile.name.split(".").pop()?.toLowerCase() || "jpg";
-    const storagePath = `${householdId}/${crypto.randomUUID()}.${ext}`;
+    try {
+      const fileName = String(selectedFile.name || "").toLowerCase();
+      const mimeType = String(selectedFile.type || "").toLowerCase();
+      const isPdf = mimeType === "application/pdf" || fileName.endsWith(".pdf");
+      const ext = isPdf
+        ? "pdf"
+        : (fileName.split(".").pop()?.replace(/[^a-z0-9]/g, "") || "jpg");
+      const fallbackId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const fileId = (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
+        ? crypto.randomUUID()
+        : fallbackId;
+      const storagePath = `${householdId}/${fileId}.${ext}`;
 
-    const uploadResult = await supabase.storage
-      .from("receipts")
-      .upload(storagePath, selectedFile, { upsert: false, contentType: selectedFile.type });
+      const uploadResult = await supabase.storage
+        .from("receipts")
+        .upload(storagePath, selectedFile, { upsert: false, contentType: selectedFile.type || undefined });
 
-    if (uploadResult.error) {
-      setBusy(false);
-      setError(uploadResult.error.message);
-      return;
-    }
+      if (uploadResult.error) {
+        throw new Error(uploadResult.error.message);
+      }
 
-    const initialReceipt = await supabase
-      .from("receipts")
-      .insert({
-        household_id: householdId,
-        merchant: "Wird analysiert...",
-        receipt_date: new Date().toISOString().slice(0, 10),
-        total_amount: 0,
-        currency: "EUR",
-        image_path: storagePath,
-        ai_status: "processing",
-      })
-      .select("id")
-      .single();
+      const initialReceipt = await supabase
+        .from("receipts")
+        .insert({
+          household_id: householdId,
+          merchant: "Wird analysiert...",
+          receipt_date: new Date().toISOString().slice(0, 10),
+          total_amount: 0,
+          currency: "EUR",
+          image_path: storagePath,
+          ai_status: "processing",
+        })
+        .select("id")
+        .single();
 
-    if (initialReceipt.error) {
-      setBusy(false);
-      setError(initialReceipt.error.message);
-      return;
-    }
+      if (initialReceipt.error) {
+        throw new Error(initialReceipt.error.message);
+      }
 
-    const receiptId = initialReceipt.data.id;
+      const receiptId = initialReceipt.data.id;
 
-    // Note: For now, we don't pass defaultCostCenterId to OCR analysis
-    const result = await analyzeReceipt(receiptId, storagePath);
-    if (!result.ok) {
-      setBusy(false);
-      setError(result.message);
-      await loadReceipts();
-      return;
-    }
+      // Note: For now, we don't pass defaultCostCenterId to OCR analysis
+      const result = await analyzeReceipt(receiptId, storagePath);
+      if (!result.ok) {
+        await loadReceipts();
+        throw new Error(result.message);
+      }
 
-    // Auto-assign categories based on merchant name
-    const freshReceipt = await supabase
-      .from("receipts")
-      .select(`*, receipt_items(*)`)
-      .eq("id", receiptId)
-      .single();
+      // Auto-assign categories based on merchant name
+      const freshReceipt = await supabase
+        .from("receipts")
+        .select(`*, receipt_items(*)`)
+        .eq("id", receiptId)
+        .single();
 
-    if (freshReceipt.data?.receipt_items?.length) {
-      const groups = activeCostGroups();
-      const merchantCategory = inferCostGroupName(freshReceipt.data.merchant || "", groups);
-      
-      if (merchantCategory) {
+      if (freshReceipt.data?.receipt_items?.length) {
+        const groups = activeCostGroups();
+        const merchantCategory = inferCostGroupName(freshReceipt.data.merchant || "", groups);
+
+        if (merchantCategory) {
+          for (const item of freshReceipt.data.receipt_items) {
+            await supabase
+              .from("receipt_items")
+              .update({ category: merchantCategory })
+              .eq("id", item.id);
+          }
+        }
+      }
+
+      // Transfer payment account to new receipt
+      const paymentAccountToUse = newPaymentAccountId || currentReceipt?.payment_account_id;
+
+      if (paymentAccountToUse) {
+        await supabase
+          .from("receipts")
+          .update({ payment_account_id: paymentAccountToUse })
+          .eq("id", receiptId);
+      }
+
+      // Assign cost center to all items if selected
+      if (newReceiptCostCenterId && freshReceipt.data?.receipt_items?.length) {
         for (const item of freshReceipt.data.receipt_items) {
           await supabase
             .from("receipt_items")
-            .update({ category: merchantCategory })
+            .update({ assigned_cost_center_id: newReceiptCostCenterId })
             .eq("id", item.id);
         }
       }
+
+      // Reset form
+      setSelectedFile(null);
+      setNewReceiptCostCenterId(null);
+      setNewPaymentAccountId(null);
+
+      setSuccess("Beleg wurde analysiert und ins Haushaltsbuch übernommen.");
+      await loadReceipts();
+      setSelectedReceipt(receiptId);
+    } catch (err) {
+      setError(err?.message || "Beim Upload oder der KI-Auswertung ist ein Fehler aufgetreten.");
+    } finally {
+      setBusy(false);
     }
-
-    // Transfer payment account to new receipt
-    const paymentAccountToUse = newPaymentAccountId || currentReceipt?.payment_account_id;
-
-    if (paymentAccountToUse) {
-      await supabase
-        .from("receipts")
-        .update({ payment_account_id: paymentAccountToUse })
-        .eq("id", receiptId);
-    }
-
-    // Assign cost center to all items if selected
-    if (newReceiptCostCenterId && freshReceipt.data?.receipt_items?.length) {
-      for (const item of freshReceipt.data.receipt_items) {
-        await supabase
-          .from("receipt_items")
-          .update({ assigned_cost_center_id: newReceiptCostCenterId })
-          .eq("id", item.id);
-      }
-    }
-
-    // Reset form
-    setSelectedFile(null);
-    setNewReceiptCostCenterId(null);
-    setNewPaymentAccountId(null);
-    
-    setBusy(false);
-    setSuccess("Beleg wurde analysiert und ins Haushaltsbuch übernommen.");
-    await loadReceipts();
-    setSelectedReceipt(receiptId);
   }
 
   async function retryAnalysis(receipt) {
