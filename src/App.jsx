@@ -423,6 +423,7 @@ function App() {
   const [accountDrafts, setAccountDrafts] = useState({});
   const [receiptItemCurrencyColumnsReady, setReceiptItemCurrencyColumnsReady] = useState(true);
   const [receiptItemIgnoreColumnReady, setReceiptItemIgnoreColumnReady] = useState(true);
+  const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [newCostGroup, setNewCostGroup] = useState({
     name: "",
     color: "#18b6a3",
@@ -444,6 +445,17 @@ function App() {
   const magicLinkCooldownMsLeft = Math.max(0, Number(magicLinkCooldownUntil || 0) - magicLinkNow);
   const magicLinkCooldownSeconds = Math.ceil(magicLinkCooldownMsLeft / 1000);
   const magicLinkBlocked = magicLinkCooldownSeconds > 0;
+
+  // Toggle section collapse/expand
+  const toggleSection = (sectionId) => {
+    const newCollapsed = new Set(collapsedSections);
+    if (newCollapsed.has(sectionId)) {
+      newCollapsed.delete(sectionId);
+    } else {
+      newCollapsed.add(sectionId);
+    }
+    setCollapsedSections(newCollapsed);
+  };
 
   // Filtered receipts based on filters
   const filteredReceipts = useMemo(() => {
@@ -3102,11 +3114,30 @@ function App() {
           {/* Section 1 */}
           <div className="receipt-form-section">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <h2 style={{ margin: 0 }}>1. Kosten für (Kostenträger)</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <button
+                  onClick={() => toggleSection("cost-center-form")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "0",
+                    display: "flex",
+                    alignItems: "center",
+                    fontSize: "1.1rem",
+                    color: "inherit",
+                  }}
+                  title="Sektion ein-/ausblenden"
+                >
+                  {collapsedSections.has("cost-center-form") ? "▶" : "▼"}
+                </button>
+                <h2 style={{ margin: 0 }}>1. Kosten für (Kostenträger)</h2>
+              </div>
               <button className="btn secondary" onClick={() => setShowCostCenterModal(true)}>
                 Kostenträger bearbeiten
               </button>
             </div>
+            {!collapsedSections.has("cost-center-form") && (
             <div className="upload-account-row">
               <div className={`color-select-wrapper ${!newReceiptCostCenterId ? 'missing-required' : ''}`} style={!newReceiptCostCenterId ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle(selectedUploadCostCenter?.color)}>
                 <select
@@ -3120,12 +3151,31 @@ function App() {
                 </select>
               </div>
             </div>
+            )}
           </div>
 
           {/* Section 2 */}
           <div className="receipt-form-section">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <h2 style={{ margin: 0 }}>2. Zahlung von (Zahlungskonto)</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <button
+                  onClick={() => toggleSection("payment-account-form")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "0",
+                    display: "flex",
+                    alignItems: "center",
+                    fontSize: "1.1rem",
+                    color: "inherit",
+                  }}
+                  title="Sektion ein-/ausblenden"
+                >
+                  {collapsedSections.has("payment-account-form") ? "▶" : "▼"}
+                </button>
+                <h2 style={{ margin: 0 }}>2. Zahlung von (Zahlungskonto)</h2>
+              </div>
               <button
                 className="btn secondary"
                 onClick={() => {
@@ -3148,11 +3198,32 @@ function App() {
                 ))}
               </select>
             </div>
+            )}
           </div>
 
           {/* Section 3 */}
           <div>
-            <h2>3. Beleg erfassen</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <button
+                onClick={() => toggleSection("receipt-capture-form")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "0",
+                  display: "flex",
+                  alignItems: "center",
+                  fontSize: "1.1rem",
+                  color: "inherit",
+                }}
+                title="Sektion ein-/ausblenden"
+              >
+                {collapsedSections.has("receipt-capture-form") ? "▶" : "▼"}
+              </button>
+              <h2 style={{ margin: 0 }}>3. Beleg erfassen</h2>
+            </div>
+            {!collapsedSections.has("receipt-capture-form") && (
+            <>
             <div className="file-picker">
               <input
                 id="receipt-file"
@@ -3171,6 +3242,8 @@ function App() {
             <button className="btn" disabled={!selectedFile || busy || !hasSetup} onClick={uploadAndExtract}>
               {busy ? "Analysiere..." : "Beleg per KI auswerten"}
             </button>
+            </>
+            )}
           </div>
         </article>
       )}
@@ -3635,6 +3708,23 @@ function App() {
       <section className="grid two workflow-stack">
         <article className="panel">
           <div className="section-header-with-button">
+            <button
+              onClick={() => toggleSection("receipts")}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: "0",
+                display: "flex",
+                alignItems: "center",
+                fontSize: "1.1rem",
+                marginRight: "8px",
+                color: "inherit",
+              }}
+              title="Sektion ein-/ausblenden"
+            >
+              {collapsedSections.has("receipts") ? "▶" : "▼"}
+            </button>
             <h2 style={{ margin: 0 }}>Belege</h2>
             <button
               className="btn secondary"
@@ -3643,6 +3733,8 @@ function App() {
               Neuer Beleg
             </button>
           </div>
+          {!collapsedSections.has("receipts") && (
+            <>
           
           {/* Receipt Filters */}
           <div style={{ marginTop: "12px", marginBottom: "12px", paddingBottom: "8px", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
@@ -3798,10 +3890,29 @@ function App() {
               Hinweis: Diese Datenbank läuft noch im alten EUR-Modus. Fremdwährung wird erst nach der Migration vollständig angezeigt.
             </p>
           )}
+            </>
+          )}
         </article>
 
         <article className="panel">
           <div className="section-header-with-button">
+            <button
+              onClick={() => toggleSection("receipt-items")}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: "0",
+                display: "flex",
+                alignItems: "center",
+                fontSize: "1.1rem",
+                marginRight: "8px",
+                color: "inherit",
+              }}
+              title="Sektion ein-/ausblenden"
+            >
+              {collapsedSections.has("receipt-items") ? "▶" : "▼"}
+            </button>
             <h2 style={{ margin: 0 }}>Positionen Beleg</h2>
             <button
               className="btn secondary"
@@ -3812,6 +3923,8 @@ function App() {
               Kostengruppen zuordnen
             </button>
           </div>
+          {!collapsedSections.has("receipt-items") && (
+            <>
           
           {currentReceipt && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "12px", alignItems: "center", marginBottom: "12px" }}>
@@ -4016,6 +4129,8 @@ function App() {
                 </div>
                 <button className="btn secondary" onClick={addManualItem} style={{ marginBottom: "16px" }}>Hinzufügen</button>
               </div>
+            </>
+          )}
             </>
           )}
         </article>
