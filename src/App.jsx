@@ -3136,7 +3136,7 @@ function App() {
                 Konten bearbeiten
               </button>
             </div>
-            <div className={`color-select-wrapper ${!newReceiptCostCenterId ? 'missing-required' : ''}`} style={!newReceiptCostCenterId ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : {}}>
+            <div className={`color-select-wrapper ${!newPaymentAccountId ? 'missing-required' : ''}`} style={!newPaymentAccountId ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((paymentAccountOptions.find((a) => a.id === newPaymentAccountId) || {}).color)}>
               <select
                 value={newPaymentAccountId || ""}
                 onChange={(e) => setNewPaymentAccountId(e.target.value || null)}
