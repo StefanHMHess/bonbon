@@ -3844,7 +3844,7 @@ function App() {
                     {/* Left column: Description and Amount */}
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
                       {/* Row 1: Description with delete button */}
-                      <div style={{ display: "flex", gap: "4px", alignItems: "center", minWidth: 0, height: "40px" }}>
+                      <div style={{ display: "flex", gap: "4px", alignItems: "flex-start", minWidth: 0, height: "40px" }}>
                         <input
                           className="description-input"
                           value={item.description || ""}
@@ -3857,7 +3857,7 @@ function App() {
                           disabled={busy}
                           onClick={() => deleteReceiptItem(item)}
                           title="Position löschen"
-                          style={{ padding: "4px 6px", minWidth: "32px", height: "40px", display: "flex", alignItems: "flex-start", justifyContent: "center", flexShrink: 0, paddingTop: "2px" }}
+                          style={{ padding: "4px 6px", minWidth: "32px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
                         >
                           🗑️
                         </button>
