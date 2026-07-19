@@ -925,6 +925,21 @@ label {
     font-size: 0.9rem;
   }
 
+  .receipt-actions {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+  }
+
+  .receipt-actions > button {
+    grid-column: span 1 !important;
+    font-size: 0.85rem;
+    padding: 8px 10px;
+  }
+
+  .receipt-actions > div {
+    grid-column: span 2 !important;
+  }
+
   .grid.two,
   .totals {
     grid-template-columns: 1fr;
