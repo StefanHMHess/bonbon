@@ -933,7 +933,8 @@ label {
   .receipt-actions > button {
     grid-column: span 1 !important;
     font-size: 0.85rem;
-    padding: 8px 10px;
+    padding: 6px 8px;
+    margin-top: 0;
   }
 
   .receipt-actions > div {
