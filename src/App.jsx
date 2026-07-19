@@ -3886,7 +3886,7 @@ function App() {
                           value={normalizeCurrencyCode(item.currency || "EUR")}
                           onChange={(e) => updateItemCurrency(item, e.target.value)}
                           disabled={!receiptItemCurrencyColumnsReady}
-                          style={{ width: "45px", minWidth: 0, height: "100%", flexShrink: 0 }}
+                          style={{ width: "32px", minWidth: 0, height: "100%", flexShrink: 0 }}
                         >
                           {CURRENCY_OPTIONS.map((currency) => (
                             <option key={currency} value={currency}>{CURRENCY_SYMBOL[currency] ?? currency}</option>
