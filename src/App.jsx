@@ -1063,13 +1063,18 @@ function App() {
 
   useEffect(() => {
     // Set cost center selection when receipt changes
-    if (selectedReceipt && currentReceipt?.receipt_items?.length > 0) {
-      const firstItemCostCenter = currentReceipt.receipt_items[0]?.assigned_cost_center_id;
-      setSelectedCostCenterForReceipt(firstItemCostCenter || null);
+    if (selectedReceipt && receipts?.length > 0) {
+      const receipt = receipts.find((r) => r.id === selectedReceipt);
+      if (receipt?.receipt_items?.length > 0) {
+        const firstItemCostCenter = receipt.receipt_items[0]?.assigned_cost_center_id;
+        setSelectedCostCenterForReceipt(firstItemCostCenter || null);
+      } else {
+        setSelectedCostCenterForReceipt(null);
+      }
     } else {
       setSelectedCostCenterForReceipt(null);
     }
-  }, [selectedReceipt, currentReceipt]);
+  }, [selectedReceipt, receipts]);
 
   // Sync colors from payment accounts to cost centers
   useEffect(() => {
