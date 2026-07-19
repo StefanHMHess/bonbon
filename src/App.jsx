@@ -3868,7 +3868,7 @@ function App() {
                           value={item.category || ""}
                           onChange={(e) => patchItem(item.id, { category: e.target.value || null })}
                         >
-                          <option value="">Keine Kostengruppe</option>
+                          <option value="">- Kostengruppe -</option>
                           {activeCostGroups().map((group) => (
                             <option key={group.id || group.name} value={group.name}>{group.name}</option>
                           ))}
@@ -3886,7 +3886,7 @@ function App() {
                           disabled={!costCenterOptions.length}
                           title="Kostenträger"
                         >
-                          <option value="">-- Wähle Kostenträger --</option>
+                          <option value="">- Kostenträger -</option>
                           {costCenterOptions.map((costCenter) => (
                             <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
                           ))}
@@ -3951,7 +3951,7 @@ function App() {
                         value={manualDraft.category || ""}
                         onChange={(e) => setManualDraft((s) => ({ ...s, category: e.target.value }))}
                       >
-                        <option value="">Keine Kostengruppe</option>
+                        <option value="">- Kostengruppe -</option>
                         {activeCostGroups().map((group) => (
                           <option key={group.id || group.name} value={group.name}>{group.name}</option>
                         ))}
@@ -3967,7 +3967,7 @@ function App() {
                         disabled={!accountCatalogReady || !costCenterOptions.length}
                         title="Kostenträger"
                       >
-                        <option value="">-- Wähle Kostenträger --</option>
+                        <option value="">- Kostenträger -</option>
                         {costCenterOptions.map((costCenter) => (
                           <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
                         ))}
