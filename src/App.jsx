@@ -3843,7 +3843,7 @@ function App() {
                   <div key={item.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px", paddingBottom: "8px", borderBottom: "1px solid rgba(0,0,0,0.05)", minWidth: 0 }}>
                     {/* Left column: Description and Amount */}
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
-                      {/* Row 1: Description with delete button */}
+                      {/* Row 1: Description + Currency + Delete button */}
                       <div style={{ display: "flex", gap: "4px", alignItems: "center", minWidth: 0, height: "40px" }}>
                         <input
                           className="description-input"
@@ -3852,6 +3852,17 @@ function App() {
                           onChange={(e) => patchItem(item.id, { description: e.target.value })}
                           style={{ flex: 1, minWidth: 0, height: "40px" }}
                         />
+                        <select
+                          className="currency-input"
+                          value={normalizeCurrencyCode(item.currency || "EUR")}
+                          onChange={(e) => updateItemCurrency(item, e.target.value)}
+                          disabled={!receiptItemCurrencyColumnsReady}
+                          style={{ width: "60px", minWidth: 0, height: "40px", flexShrink: 0, marginLeft: "auto" }}
+                        >
+                          {CURRENCY_OPTIONS.map((currency) => (
+                            <option key={currency} value={currency}>{CURRENCY_SYMBOL[currency] ?? currency}</option>
+                          ))}
+                        </select>
                         <button
                           className="btn secondary mini-btn"
                           disabled={busy}
@@ -3863,36 +3874,23 @@ function App() {
                         </button>
                       </div>
                       
-                      {/* Row 2: Amount with currency */}
-                      <div className="amount-cell" style={{ display: "flex", gap: "4px", height: "40px", minWidth: 0, alignItems: "center" }}>
-                        <input
-                          className="amount-input"
-                          type="text"
-                          inputMode="decimal"
-                          value={Object.prototype.hasOwnProperty.call(amountDrafts, item.id) ? amountDrafts[item.id] : formatAmountDE(getItemOriginalAmount(item))}
-                          title={formatConvertedInfo(item)}
-                          onChange={(e) => updateAmountDraft(item.id, e.target.value)}
-                          onBlur={() => commitAmountDraft(item)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.currentTarget.blur();
-                            }
-                          }}
-                          style={{ width: "100px", minWidth: 0, height: "100%" }}
-                        />
-                        <select
-                          className="currency-input"
-                          value={normalizeCurrencyCode(item.currency || "EUR")}
-                          onChange={(e) => updateItemCurrency(item, e.target.value)}
-                          disabled={!receiptItemCurrencyColumnsReady}
-                          style={{ width: "70px", minWidth: 0, height: "100%" }}
-                        >
-                          {CURRENCY_OPTIONS.map((currency) => (
-                            <option key={currency} value={currency}>{CURRENCY_SYMBOL[currency] ?? currency}</option>
-                          ))}
-                        </select>
-                        {!receiptItemCurrencyColumnsReady && <span className="fallback-badge">€</span>}
-                      </div>
+                      {/* Row 2: Amount only */}
+                      <input
+                        className="amount-input"
+                        type="text"
+                        inputMode="decimal"
+                        value={Object.prototype.hasOwnProperty.call(amountDrafts, item.id) ? amountDrafts[item.id] : formatAmountDE(getItemOriginalAmount(item))}
+                        title={formatConvertedInfo(item)}
+                        onChange={(e) => updateAmountDraft(item.id, e.target.value)}
+                        onBlur={() => commitAmountDraft(item)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.currentTarget.blur();
+                          }
+                        }}
+                        style={{ width: "100%", minWidth: 0, height: "40px" }}
+                      />
+                      {!receiptItemCurrencyColumnsReady && <span className="fallback-badge">€</span>}
                     </div>
                     
                     {/* Right column: Cost Group and Cost Center */}
