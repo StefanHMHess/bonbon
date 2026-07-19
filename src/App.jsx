@@ -3658,7 +3658,7 @@ function App() {
                 <select
                   value={receiptMonthFilter}
                   onChange={(e) => setReceiptMonthFilter(e.target.value)}
-                  style={{ padding: "6px 10px", border: "1px solid #ccc", borderRadius: "4px" }}
+                  style={{ padding: "4px 8px", border: "1px solid #ccc", borderRadius: "4px", fontSize: "0.9rem", height: "32px" }}
                 >
                   <option value="current">Diesen Monat</option>
                   <option value="last">Letzten Monat</option>
@@ -3680,14 +3680,14 @@ function App() {
                     <option value="11">Dezember</option>
                   </optgroup>
                 </select>
-                <label style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 0" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "6px", padding: "4px 0" }}>
                   <input
                     type="checkbox"
                     checked={hideSettlementReceipts}
                     onChange={(e) => setHideSettlementReceipts(e.target.checked)}
                     style={{ width: "auto" }}
                   />
-                  Ausgleichszahlungen verbergen
+                  <span style={{ fontSize: "0.9rem" }}>Ausgleichszahlungen verbergen</span>
                 </label>
               </div>
             </div>
