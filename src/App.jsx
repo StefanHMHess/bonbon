@@ -3807,6 +3807,7 @@ function App() {
               className="btn secondary"
               disabled={busy || !currentReceipt?.receipt_items?.length}
               onClick={() => autoAssignCategories(currentReceipt)}
+              style={{ padding: "6px 8px", fontSize: "0.85rem" }}
             >
               Kostengruppen zuordnen
             </button>
@@ -3885,7 +3886,7 @@ function App() {
                           value={normalizeCurrencyCode(item.currency || "EUR")}
                           onChange={(e) => updateItemCurrency(item, e.target.value)}
                           disabled={!receiptItemCurrencyColumnsReady}
-                          style={{ width: "60px", minWidth: 0, height: "100%", flexShrink: 0 }}
+                          style={{ width: "45px", minWidth: 0, height: "100%", flexShrink: 0 }}
                         >
                           {CURRENCY_OPTIONS.map((currency) => (
                             <option key={currency} value={currency}>{CURRENCY_SYMBOL[currency] ?? currency}</option>
