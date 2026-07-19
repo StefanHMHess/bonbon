@@ -3100,8 +3100,8 @@ function App() {
       {!selectedReceipt && (
         <article className="panel">
           {/* Section 1 */}
-          <div style={{ paddingBottom: "16px", marginBottom: "16px", borderBottom: "1px solid rgba(0,0,0,0.1)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+          <div className="receipt-form-section">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
               <h2 style={{ margin: 0 }}>1. Kosten für (Kostenträger)</h2>
               <button className="btn secondary" onClick={() => setShowCostCenterModal(true)}>
                 Kostenträger bearbeiten
@@ -3123,8 +3123,8 @@ function App() {
           </div>
 
           {/* Section 2 */}
-          <div style={{ paddingBottom: "16px", marginBottom: "16px", borderBottom: "1px solid rgba(0,0,0,0.1)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+          <div className="receipt-form-section">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
               <h2 style={{ margin: 0 }}>2. Zahlung von (Zahlungskonto)</h2>
               <button
                 className="btn secondary"

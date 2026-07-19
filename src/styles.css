@@ -906,6 +906,25 @@ label {
 }
 
 @media (max-width: 900px) {
+  .page {
+    padding: 16px 12px 24px;
+  }
+
+  .panel {
+    padding: 12px;
+  }
+
+  h2 {
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+  }
+
+  .btn {
+    margin-top: 8px;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+  }
+
   .grid.two,
   .totals {
     grid-template-columns: 1fr;
@@ -1015,5 +1034,18 @@ label {
     font-weight: 600;
     text-align: left;
     margin-right: 12px;
+  }
+}
+
+.receipt-form-section {
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(0,0,0,0.1);
+}
+
+@media (max-width: 900px) {
+  .receipt-form-section {
+    padding-bottom: 12px;
+    margin-bottom: 12px;
   }
 }
