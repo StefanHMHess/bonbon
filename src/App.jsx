@@ -3850,7 +3850,7 @@ function App() {
                           value={item.description || ""}
                           title={item.description || ""}
                           onChange={(e) => patchItem(item.id, { description: e.target.value })}
-                          style={{ flex: 1, minWidth: 0, minHeight: "32px" }}
+                          style={{ flex: 1, minWidth: 0, height: "40px" }}
                         />
                         <button
                           className="btn secondary mini-btn"
@@ -3864,7 +3864,7 @@ function App() {
                       </div>
                       
                       {/* Row 2: Amount with currency */}
-                      <div className="amount-cell" style={{ display: "flex", gap: "4px", minHeight: "32px", minWidth: 0 }}>
+                      <div className="amount-cell" style={{ display: "flex", gap: "4px", height: "40px", minWidth: 0, alignItems: "center" }}>
                         <input
                           className="amount-input"
                           type="text"
@@ -3878,14 +3878,14 @@ function App() {
                               e.currentTarget.blur();
                             }
                           }}
-                          style={{ width: "100px", minWidth: 0 }}
+                          style={{ width: "100px", minWidth: 0, height: "100%" }}
                         />
                         <select
                           className="currency-input"
                           value={normalizeCurrencyCode(item.currency || "EUR")}
                           onChange={(e) => updateItemCurrency(item, e.target.value)}
                           disabled={!receiptItemCurrencyColumnsReady}
-                          style={{ width: "70px", minWidth: 0 }}
+                          style={{ width: "70px", minWidth: 0, height: "100%" }}
                         >
                           {CURRENCY_OPTIONS.map((currency) => (
                             <option key={currency} value={currency}>{CURRENCY_SYMBOL[currency] ?? currency}</option>
@@ -3898,9 +3898,9 @@ function App() {
                     {/* Right column: Cost Group and Cost Center */}
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px", minWidth: 0 }}>
                       {/* Row 1: Cost Group */}
-                      <div className={`color-select-wrapper ${!item.category ? 'missing-required' : ''}`} style={!item.category ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", minHeight: "32px", minWidth: 0 } : {...buildColorInputStyle(
+                      <div className={`color-select-wrapper ${!item.category ? 'missing-required' : ''}`} style={!item.category ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", height: "40px", minWidth: 0, display: "flex", alignItems: "center" } : {...buildColorInputStyle(
                         activeCostGroups().find(g => g.name === item.category)?.color
-                      ), minHeight: "32px", minWidth: 0}}>
+                      ), height: "40px", minWidth: 0, display: "flex", alignItems: "center"}}>
                         <select
                           className="category-input cost-group-input"
                           value={item.category || ""}
@@ -3914,9 +3914,9 @@ function App() {
                       </div>
                       
                       {/* Row 2: Cost Center */}
-                      <div className={`color-select-wrapper ${!assignedCostCenterByItemId.get(item.id) ? 'missing-required' : ''}`} style={!assignedCostCenterByItemId.get(item.id) ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", minHeight: "32px", minWidth: 0 } : {...buildColorInputStyle(
+                      <div className={`color-select-wrapper ${!assignedCostCenterByItemId.get(item.id) ? 'missing-required' : ''}`} style={!assignedCostCenterByItemId.get(item.id) ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", height: "40px", minWidth: 0, display: "flex", alignItems: "center" } : {...buildColorInputStyle(
                         costCenterOptions.find(cc => cc.id === assignedCostCenterByItemId.get(item.id))?.color
-                      ), minHeight: "32px", minWidth: 0}}>
+                      ), height: "40px", minWidth: 0, display: "flex", alignItems: "center"}}>
                         <select
                           className={`category-input account-input`}
                           value={assignedCostCenterByItemId.get(item.id) || ""}
