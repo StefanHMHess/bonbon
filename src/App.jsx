@@ -3186,6 +3186,7 @@ function App() {
                 Konten bearbeiten
               </button>
             </div>
+            {!collapsedSections.has("payment-account-form") && (
             <div className={`color-select-wrapper ${!newPaymentAccountId ? 'missing-required' : ''}`} style={!newPaymentAccountId ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((paymentAccountOptions.find((a) => a.id === newPaymentAccountId) || {}).color)}>
               <select
                 value={newPaymentAccountId || ""}
