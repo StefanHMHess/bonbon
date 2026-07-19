@@ -4002,12 +4002,13 @@ function App() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
             <h2 style={{ margin: 0 }}>6. Haushaltsbuch</h2>
             <div style={{ display: "flex", gap: "8px" }}>
-              <button className="btn secondary" onClick={() => setShowCostCenterModal(true)}>
+              <button className="btn secondary" onClick={(e) => { e.stopPropagation(); setShowCostCenterModal(true); }}>
                 Kostenträger bearbeiten
               </button>
               <button
                 className="btn secondary"
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   setShowCostGroupModal(true);
                   setCostGroupModalView("accounts");
                 }}
@@ -4016,7 +4017,8 @@ function App() {
               </button>
               <button
                 className="btn secondary"
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   setShowCostGroupModal(true);
                   setCostGroupModalView("edit");
                 }}
