@@ -389,6 +389,7 @@ function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [manualDraft, setManualDraft] = useState(emptyDraft);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
+  const [selectedCostCenterForReceipt, setSelectedCostCenterForReceipt] = useState(null);
   const [amountDrafts, setAmountDrafts] = useState({});
   const [showCostGroupModal, setShowCostGroupModal] = useState(false);
   const [costGroupModalView, setCostGroupModalView] = useState("summary");
@@ -1038,6 +1039,11 @@ function App() {
     loadFamilyAccounts();
     loadCostCenters();
   }, [canUseApp]);
+
+  useEffect(() => {
+    // Reset cost center selection when receipt changes
+    setSelectedCostCenterForReceipt(null);
+  }, [selectedReceipt]);
 
   // Sync colors from payment accounts to cost centers
   useEffect(() => {
@@ -2287,6 +2293,16 @@ function App() {
         .eq("id", receiptId);
     }
 
+    // Assign cost center to all items if selected
+    if (newReceiptCostCenterId && freshReceipt.data?.receipt_items?.length) {
+      for (const item of freshReceipt.data.receipt_items) {
+        await supabase
+          .from("receipt_items")
+          .update({ assigned_cost_center_id: newReceiptCostCenterId })
+          .eq("id", item.id);
+      }
+    }
+
     // Reset form
     setSelectedFile(null);
     setNewReceiptCostCenterId(null);
@@ -2645,6 +2661,34 @@ function App() {
 
     setBusy(false);
     setSuccess("Kostenträger auf alle Positionen übertragen.");
+    await loadReceipts();
+  }
+
+  async function changeCostCenterForAllItems(costCenterId) {
+    if (!currentReceipt?.receipt_items?.length) {
+      setError("Keine Positionen vorhanden.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setSuccess("");
+
+    for (const item of currentReceipt.receipt_items) {
+      const { error: updateError } = await supabase
+        .from("receipt_items")
+        .update({ assigned_cost_center_id: costCenterId })
+        .eq("id", item.id);
+
+      if (updateError) {
+        setBusy(false);
+        setError(updateError.message);
+        return;
+      }
+    }
+
+    setBusy(false);
+    setSuccess("Kostenträger für alle Positionen aktualisiert.");
     await loadReceipts();
   }
 
@@ -3548,6 +3592,29 @@ function App() {
 
       {error && <p className="hint error">{error}</p>}
       {success && <p className="hint success">{success}</p>}
+
+      {currentReceipt && (
+        <article className="panel">
+          <h2>2b. Kostenträger für Positionen</h2>
+          <div className={`color-select-wrapper ${!selectedCostCenterForReceipt ? 'missing-required' : ''}`} style={!selectedCostCenterForReceipt ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((costCenterOptions.find((cc) => cc.id === selectedCostCenterForReceipt) || {}).color)}>
+            <select
+              value={selectedCostCenterForReceipt || ""}
+              onChange={(e) => {
+                setSelectedCostCenterForReceipt(e.target.value || null);
+                if (e.target.value) {
+                  changeCostCenterForAllItems(e.target.value);
+                }
+              }}
+              disabled={busy}
+            >
+              <option value="">-- Wähle Kostenträger --</option>
+              {costCenterOptions.map((costCenter) => (
+                <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
+              ))}
+            </select>
+          </div>
+        </article>
+      )}
 
       <section className="grid two workflow-stack">
         <article className="panel">
