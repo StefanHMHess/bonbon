@@ -3662,7 +3662,7 @@ function App() {
         </article>
 
         <article className="panel">
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "12px", marginBottom: "12px", alignItems: "start" }}>
+          <div className="section-header-with-button">
             <h2 style={{ margin: 0 }}>5. Positionen Beleg</h2>
             <button
               className="btn secondary"
