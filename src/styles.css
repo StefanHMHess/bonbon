@@ -754,15 +754,7 @@ label {
 }
 
 @media (max-width: 480px) {
-  .amount-cell {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .amount-input,
-  .currency-input {
-    width: 100%;
-  }
+  /* Removed: amount-cell should stay as flex row to keep amount + currency inline */
 }
 
 .category-input {
