@@ -11,7 +11,7 @@ const dateTimeDE = new Intl.DateTimeFormat("de-DE", {
   timeStyle: "short",
 });
 const dateDE = new Intl.DateTimeFormat("de-DE", { dateStyle: "short" });
-const APP_VERSION = "v0.4.0";
+const APP_VERSION = "v0.4.1";
 const CURRENCY_OPTIONS = ["EUR", "TRY", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF"];
 const CURRENCY_SYMBOL = { EUR: "€", TRY: "₺", USD: "$", GBP: "£", CHF: "Fr", SEK: "kr", NOK: "kr", DKK: "kr", PLN: "zł", CZK: "Kč", HUF: "Ft" };
 const AUTH_EMAIL_STORAGE_KEY = "bonbox_auth_email";
@@ -441,6 +441,8 @@ function App() {
   const [newCostCenter, setNewCostCenter] = useState({ name: "", color: "#18b6a3", sort_order: 100 });
   const [newReceiptCostCenterId, setNewReceiptCostCenterId] = useState(null); // Kostenträger (wer trägt die Kosten)
   const [newPaymentAccountId, setNewPaymentAccountId] = useState(null); // Zahlungskonto für neuen Beleg
+  const [blankReceiptPreset, setBlankReceiptPreset] = useState({ receiptId: null, costCenterId: null });
+  const [receiptMerchantDraft, setReceiptMerchantDraft] = useState("");
   const [authEmail, setAuthEmail] = useState(() => {
     return safeStorageGet(AUTH_EMAIL_STORAGE_KEY, "");
   });
@@ -1182,13 +1184,15 @@ function App() {
       if (receipt?.receipt_items?.length > 0) {
         const firstItemCostCenter = receipt.receipt_items[0]?.assigned_cost_center_id;
         setSelectedCostCenterForReceipt(firstItemCostCenter || null);
+      } else if (blankReceiptPreset.receiptId === selectedReceipt) {
+        setSelectedCostCenterForReceipt(blankReceiptPreset.costCenterId || null);
       } else {
         setSelectedCostCenterForReceipt(null);
       }
     } else {
       setSelectedCostCenterForReceipt(null);
     }
-  }, [selectedReceipt, receipts]);
+  }, [selectedReceipt, receipts, blankReceiptPreset]);
 
   // Sync colors from payment accounts to cost centers
   useEffect(() => {
@@ -2514,6 +2518,42 @@ function App() {
     await loadReceipts();
   }
 
+  async function createBlankReceipt() {
+    if (!canUseApp) return;
+    const carryCostCenterId = selectedCostCenterForReceipt || newReceiptCostCenterId || null;
+
+    setBusy(true);
+    setError("");
+    setSuccess("");
+
+    const { data, error: insertError } = await supabase
+      .from("receipts")
+      .insert({
+        household_id: householdId,
+        merchant: "Blankobeleg",
+        receipt_date: new Date().toISOString().slice(0, 10),
+        total_amount: 0,
+        currency: "EUR",
+        ai_status: "done",
+        payment_account_id: newPaymentAccountId || defaultFamilyAccount.id,
+      })
+      .select("id")
+      .single();
+
+    setBusy(false);
+
+    if (insertError) {
+      setError(insertError.message);
+      return;
+    }
+
+    setSuccess("Blankobeleg erstellt. Positionen können jetzt manuell ergänzt werden.");
+    await loadReceipts();
+    setBlankReceiptPreset({ receiptId: data?.id || null, costCenterId: carryCostCenterId });
+    setSelectedReceipt(data?.id || null);
+    setManualDraft((prev) => ({ ...prev, accountId: carryCostCenterId || "" }));
+  }
+
   async function addManualItem() {
     if (!selectedReceipt) return;
 
@@ -2555,8 +2595,9 @@ function App() {
     }
 
     const insertedItem = insertResponse.data?.[0];
-    if (insertedItem?.id && manualDraft.accountId) {
-      await assignItemToCostCenter(insertedItem, manualDraft.accountId);
+    const costCenterToAssign = manualDraft.accountId || selectedCostCenterForReceipt;
+    if (insertedItem?.id && costCenterToAssign) {
+      await assignItemToCostCenter(insertedItem, costCenterToAssign);
     }
 
     setManualDraft(emptyDraft);
@@ -2616,6 +2657,16 @@ function App() {
 
     await loadReceipts();
     setBusy(false);
+  }
+
+  async function commitReceiptMerchant() {
+    if (!currentReceipt?.id) return;
+
+    const nextMerchant = String(receiptMerchantDraft || "").trim() || "Blankobeleg";
+    const currentMerchant = String(currentReceipt.merchant || "").trim();
+    if (nextMerchant === currentMerchant) return;
+
+    await patchReceipt(currentReceipt.id, { merchant: nextMerchant });
   }
 
   async function toggleIgnoreItem(item) {
@@ -3028,6 +3079,10 @@ function App() {
   }
 
   const currentReceipt = receipts.find((r) => r.id === selectedReceipt) || null;
+
+  useEffect(() => {
+    setReceiptMerchantDraft(currentReceipt?.merchant || "");
+  }, [currentReceipt?.id, currentReceipt?.merchant]);
 
   if (authLoading) {
     return (
@@ -3873,7 +3928,10 @@ function App() {
                   <button
                     className="btn secondary"
                     style={{ gridColumn: "span 1" }}
-                    onClick={() => setSelectedReceipt(null)}
+                    onClick={() => {
+                      setNewReceiptCostCenterId(selectedCostCenterForReceipt || newReceiptCostCenterId || null);
+                      setSelectedReceipt(null);
+                    }}
                   >
                     Neuer Beleg
                   </button>
@@ -3899,9 +3957,11 @@ function App() {
                 <select
                   value={selectedCostCenterForReceipt || ""}
                   onChange={(e) => {
-                    setSelectedCostCenterForReceipt(e.target.value || null);
-                    if (e.target.value) {
-                      changeCostCenterForAllItems(e.target.value);
+                    const nextCostCenterId = e.target.value || null;
+                    setSelectedCostCenterForReceipt(nextCostCenterId);
+                    setNewReceiptCostCenterId(nextCostCenterId);
+                    if (nextCostCenterId) {
+                      changeCostCenterForAllItems(nextCostCenterId);
                     }
                   }}
                   disabled={busy}
@@ -3919,7 +3979,7 @@ function App() {
             )}
 
             {!collapsedSections.has("receipts") && !currentReceipt && (
-              <div className="receipt-actions" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px", marginBottom: "10px", padding: "2px 0" }}>
+              <div className="receipt-actions" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginBottom: "10px", padding: "2px 0" }}>
                 <button
                   className="btn secondary"
                   onClick={() => {
@@ -3930,6 +3990,13 @@ function App() {
                   disabled={!receipts.length}
                 >
                   Abbrechen
+                </button>
+                <button
+                  className="btn secondary"
+                  onClick={createBlankReceipt}
+                  disabled={busy}
+                >
+                  Blankobeleg
                 </button>
                 <button
                   className="btn secondary"
@@ -4081,7 +4148,22 @@ function App() {
           {!collapsedSections.has("receipt-items") && currentReceipt && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "12px", alignItems: "flex-start", marginBottom: "12px" }}>
               <div className="receipt-info" style={{ margin: 0 }}>
-                <strong>{currentReceipt.merchant || "Unbekannt"}</strong>
+                <input
+                  className="receipt-merchant-input"
+                  type="text"
+                  value={receiptMerchantDraft}
+                  onChange={(e) => setReceiptMerchantDraft(e.target.value)}
+                  onBlur={() => { void commitReceiptMerchant(); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void commitReceiptMerchant();
+                    }
+                  }}
+                  placeholder="Belegname"
+                  disabled={busy}
+                  style={{ marginBottom: "4px" }}
+                />
                 <small>{formatReceiptDateTime(currentReceipt)}</small>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
