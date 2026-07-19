@@ -4157,7 +4157,7 @@ function App() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <button
-                onClick={() => toggleSection("household-book")}
+                onClick={(e) => { e.stopPropagation(); toggleSection("household-book"); }}
                 style={{
                   background: "none",
                   border: "none",
@@ -4255,7 +4255,7 @@ function App() {
         <article className="panel">
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
             <button
-              onClick={() => toggleSection("settlement")}
+              onClick={(e) => { e.stopPropagation(); toggleSection("settlement"); }}
               style={{
                 background: "none",
                 border: "none",
