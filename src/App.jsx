@@ -3546,7 +3546,15 @@ function App() {
 
       <section className="grid two workflow-stack">
         <article className="panel">
-          <h2>4. Belege</h2>
+          <div className="section-header-with-button">
+            <h2>4. Belege</h2>
+            <button
+              className="btn secondary"
+              onClick={() => setSelectedReceipt(null)}
+            >
+              Neuer Beleg
+            </button>
+          </div>
           
           {/* Receipt Filters */}
           <div style={{ marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
