@@ -3708,7 +3708,7 @@ function App() {
 
       <section className="grid two workflow-stack">
         <article className="panel">
-          <div className="section-header-with-button" style={{ position: "sticky", top: 0, backgroundColor: "white", zIndex: 11, paddingBottom: "8px" }}>
+          <div className="section-header-with-button" style={{ position: "sticky", top: 0, zIndex: 11, paddingBottom: "8px" }}>
             <button
               onClick={() => toggleSection("receipts")}
               style={{
@@ -3732,7 +3732,7 @@ function App() {
             <>
           
           {currentReceipt && !collapsedSections.has("receipts") && (
-            <div className="receipt-actions" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "4px", marginBottom: "12px", padding: "8px 0", position: "sticky", top: 0, backgroundColor: "white", zIndex: 10 }}>
+            <div className="receipt-actions" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "4px", marginBottom: "12px", padding: "8px 0", position: "sticky", top: "46px", zIndex: 10 }}>
               <button
                 className="btn secondary"
                 style={{ gridColumn: "span 2" }}
@@ -3764,6 +3764,43 @@ function App() {
               >
                 Neuer Beleg
               </button>
+            </div>
+          )}
+          
+          {/* Zahlkonto and Kostenträger below buttons */}
+          {currentReceipt && !collapsedSections.has("receipts") && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "12px", position: "sticky", top: "100px", zIndex: 10 }}>
+              <div className={`color-select-wrapper ${!currentReceipt.payment_account_id ? 'missing-required' : ''}`} style={{...(!currentReceipt.payment_account_id ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color)) }}>
+                <select
+                  value={currentReceipt.payment_account_id || ""}
+                  onChange={(e) => patchReceipt(currentReceipt.id, { payment_account_id: e.target.value || null })}
+                  disabled={busy}
+                  title="Zahlungskonto"
+                >
+                  <option value="">-- Zahlungskonto --</option>
+                  {paymentAccountOptions.map((account) => (
+                    <option key={account.id} value={account.id}>{account.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className={`color-select-wrapper ${!selectedCostCenterForReceipt ? 'missing-required' : ''}`} style={{...(!selectedCostCenterForReceipt ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((costCenterOptions.find((cc) => cc.id === selectedCostCenterForReceipt) || {}).color)) }}>
+                <select
+                  value={selectedCostCenterForReceipt || ""}
+                  onChange={(e) => {
+                    setSelectedCostCenterForReceipt(e.target.value || null);
+                    if (e.target.value) {
+                      changeCostCenterForAllItems(e.target.value);
+                    }
+                  }}
+                  disabled={busy}
+                  title="Kostenträger"
+                >
+                  <option value="">-- Kostenträger --</option>
+                  {costCenterOptions.map((costCenter) => (
+                    <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           )}
           
@@ -3814,43 +3851,6 @@ function App() {
                     <span style={{ fontSize: "0.9rem" }}>Ausgleichszahlungen verbergen</span>
                   </label>
                 </div>
-              </div>
-            </div>
-          )}
-          
-          {/* Zahlkonto and Kostenträger below filters */}
-          {currentReceipt && !collapsedSections.has("receipts") && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "12px" }}>
-              <div className={`color-select-wrapper ${!currentReceipt.payment_account_id ? 'missing-required' : ''}`} style={{...(!currentReceipt.payment_account_id ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color)) }}>
-                <select
-                  value={currentReceipt.payment_account_id || ""}
-                  onChange={(e) => patchReceipt(currentReceipt.id, { payment_account_id: e.target.value || null })}
-                  disabled={busy}
-                  title="Zahlungskonto"
-                >
-                  <option value="">-- Zahlungskonto --</option>
-                  {paymentAccountOptions.map((account) => (
-                    <option key={account.id} value={account.id}>{account.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className={`color-select-wrapper ${!selectedCostCenterForReceipt ? 'missing-required' : ''}`} style={{...(!selectedCostCenterForReceipt ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((costCenterOptions.find((cc) => cc.id === selectedCostCenterForReceipt) || {}).color)) }}>
-                <select
-                  value={selectedCostCenterForReceipt || ""}
-                  onChange={(e) => {
-                    setSelectedCostCenterForReceipt(e.target.value || null);
-                    if (e.target.value) {
-                      changeCostCenterForAllItems(e.target.value);
-                    }
-                  }}
-                  disabled={busy}
-                  title="Kostenträger"
-                >
-                  <option value="">-- Kostenträger --</option>
-                  {costCenterOptions.map((costCenter) => (
-                    <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
-                  ))}
-                </select>
               </div>
             </div>
           )}
