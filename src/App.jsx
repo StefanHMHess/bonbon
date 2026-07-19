@@ -3864,7 +3864,7 @@ function App() {
                       </div>
                       
                       {/* Row 2: Amount with currency */}
-                      <div className="amount-cell" style={{ display: "flex", gap: "4px", minHeight: "32px", minWidth: 0 }}>
+                      <div className="amount-cell" style={{ display: "flex", gap: "4px", minWidth: 0, alignItems: "flex-start" }}>
                         <input
                           className="amount-input"
                           type="text"
