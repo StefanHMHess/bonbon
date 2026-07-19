@@ -3925,15 +3925,17 @@ function App() {
               {collapsedSections.has("receipt-items") ? "⊕" : "⊖"}
             </button>
             <h2 style={{ margin: 0 }}>Positionen Beleg</h2>
+          </div>
+          {!collapsedSections.has("receipt-items") && (
             <button
               className="btn secondary"
               disabled={busy || !currentReceipt?.receipt_items?.length}
               onClick={() => autoAssignCategories(currentReceipt)}
-              style={{ padding: "6px 8px", fontSize: "0.85rem" }}
+              style={{ padding: "6px 8px", fontSize: "0.85rem", marginBottom: "12px" }}
             >
               Kostengruppen zuordnen
             </button>
-          </div>
+          )}
           {!collapsedSections.has("receipt-items") && (
             <>
           
