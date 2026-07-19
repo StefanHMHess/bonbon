@@ -3753,12 +3753,17 @@ function App() {
             </div>
           )}
           <div className="receipt-list">
-            {filteredReceipts.map((receipt) => (
+            {filteredReceipts.map((receipt) => {
+              const paymentAccountColor = (paymentAccountOptions.find((a) => a.id === receipt.payment_account_id) || {}).color;
+              const firstItemCostCenterId = receipt.receipt_items?.[0]?.assigned_cost_center_id;
+              const costCenterColor = firstItemCostCenterId ? (costCenters.find((cc) => cc.id === firstItemCostCenterId) || {}).color : null;
+              
+              return (
               <button
                 key={receipt.id}
                 className={`receipt-button ${receipt.id === selectedReceipt ? "active" : ""}`}
                 onClick={() => setSelectedReceipt(receipt.id)}
-                style={receipt.payment_account_id ? buildColorInputStyle((paymentAccountOptions.find((a) => a.id === receipt.payment_account_id) || {}).color) : {}}
+                style={receipt.payment_account_id ? buildColorInputStyle(paymentAccountColor) : {}}
               >
                 <div>
                   <strong>
@@ -3768,13 +3773,24 @@ function App() {
                   <small>
                     {formatReceiptDateTime(receipt)}{receipt.currency && receipt.currency !== "EUR" ? ` · ${receipt.currency}` : ""}
                   </small>
+                  {receipt.id !== selectedReceipt && (
+                    <div style={{ display: "flex", gap: "6px", marginTop: "4px" }}>
+                      {paymentAccountColor && (
+                        <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: paymentAccountColor, display: "inline-block" }} title="Zahlungskonto" />
+                      )}
+                      {costCenterColor && (
+                        <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: costCenterColor, display: "inline-block" }} title="Kostenträger" />
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="receipt-amounts">
                   <span className="receipt-amount-original">{formatReceiptOriginalTotal(receipt)}</span>
                   <span className="receipt-amount-eur">{euro.format(getReceiptEurTotal(receipt))}</span>
                 </div>
               </button>
-            ))}
+            );
+            })}
             {!receipts.length && !busy && <p className="hint">Noch keine Belege vorhanden.</p>}
           </div>
           {!receiptItemCurrencyColumnsReady && (
