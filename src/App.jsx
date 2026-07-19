@@ -3694,7 +3694,7 @@ function App() {
           </div>
           
           {currentReceipt && (
-            <div className="receipt-actions" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "8px" }}>
+            <div className="receipt-actions" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "4px", marginTop: "-4px" }}>
               <button
                 className="btn secondary"
                 style={{ gridColumn: "span 2" }}
