@@ -4014,6 +4014,15 @@ function App() {
               >
                 Konten bearbeiten
               </button>
+              <button
+                className="btn secondary"
+                onClick={() => {
+                  setShowCostGroupModal(true);
+                  setCostGroupModalView("edit");
+                }}
+              >
+                Kostengruppen bearbeiten
+              </button>
             </div>
           </div>
           <div className="totals">
