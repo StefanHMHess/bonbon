@@ -3659,7 +3659,7 @@ function App() {
                 Beleg löschen
               </button>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                <div className="color-select-wrapper" style={buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color)}>
+                <div className={`color-select-wrapper ${!currentReceipt.payment_account_id ? 'missing-required' : ''}`} style={!currentReceipt.payment_account_id ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color)}>
                   <select
                     value={currentReceipt.payment_account_id || ""}
                     onChange={(e) => patchReceipt(currentReceipt.id, { payment_account_id: e.target.value || null })}
@@ -3672,7 +3672,7 @@ function App() {
                     ))}
                   </select>
                 </div>
-                <div className="color-select-wrapper" style={buildColorInputStyle((costCenterOptions.find((cc) => cc.id === selectedCostCenterForReceipt) || {}).color)}>
+                <div className={`color-select-wrapper ${!selectedCostCenterForReceipt ? 'missing-required' : ''}`} style={!selectedCostCenterForReceipt ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle((costCenterOptions.find((cc) => cc.id === selectedCostCenterForReceipt) || {}).color)}>
                   <select
                     value={selectedCostCenterForReceipt || ""}
                     onChange={(e) => {
@@ -3839,11 +3839,11 @@ function App() {
                       </div>
                       
                       {/* Row 2: Cost Center */}
-                      <div className="color-select-wrapper" style={{...buildColorInputStyle(
+                      <div className={`color-select-wrapper ${!assignedCostCenterByItemId.get(item.id) ? 'missing-required' : ''}`} style={!assignedCostCenterByItemId.get(item.id) ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", minHeight: "32px", minWidth: 0 } : {...buildColorInputStyle(
                         costCenterOptions.find(cc => cc.id === assignedCostCenterByItemId.get(item.id))?.color
                       ), minHeight: "32px", minWidth: 0}}>
                         <select
-                          className={`category-input account-input ${!assignedCostCenterByItemId.get(item.id) ? 'missing-required' : ''}`}
+                          className={`category-input account-input`}
                           value={assignedCostCenterByItemId.get(item.id) || ""}
                           onChange={(e) => assignItemToCostCenter(item, e.target.value || null)}
                           disabled={!costCenterOptions.length}
