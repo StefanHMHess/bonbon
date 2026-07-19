@@ -112,7 +112,7 @@ const emptyDraft = {
   amount: "",
   currency: "EUR",
   category: "",
-  accountId: defaultFamilyAccount.id,
+  accountId: "",
 };
 
 function sumItems(receipts) {
