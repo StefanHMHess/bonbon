@@ -3627,7 +3627,7 @@ function App() {
           </div>
           
           {/* Receipt Filters */}
-          <div style={{ marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
+          <div style={{ marginTop: "12px", marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               <input
                 type="text"
