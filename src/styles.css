@@ -873,11 +873,12 @@ label {
 
 .description-input {
   grid-area: desc;
-  min-height: 60px;
+  min-height: auto;
   resize: vertical;
-  padding: 8px;
+  padding: 0;
   font-family: inherit;
   line-height: 1.4;
+  box-sizing: border-box;
 }
 
 .amount-cell {
