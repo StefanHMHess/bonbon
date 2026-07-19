@@ -2609,6 +2609,38 @@ function App() {
     await loadReceipts();
   }
 
+  async function transferCostCenterToAll(receipt) {
+    const items = receipt?.receipt_items || [];
+    
+    if (!items.length || !items[0]?.assigned_cost_center_id) {
+      setError("Die erste Position hat keinen Kostenträger. Bitte erst zuweisen.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setSuccess("");
+
+    const firstItemCostCenterId = items[0].assigned_cost_center_id;
+
+    for (const item of items.slice(1)) {
+      const { error: updateError } = await supabase
+        .from("receipt_items")
+        .update({ assigned_cost_center_id: firstItemCostCenterId })
+        .eq("id", item.id);
+
+      if (updateError) {
+        setBusy(false);
+        setError(updateError.message);
+        return;
+      }
+    }
+
+    setBusy(false);
+    setSuccess("Kostenträger auf alle Positionen übertragen.");
+    await loadReceipts();
+  }
+
   async function createSettlementReceipt(debtorAccount, creditorAccount, amount) {
     if (!supabase || !debtorAccount?.id || !creditorAccount?.id) return;
     
@@ -3619,13 +3651,23 @@ function App() {
         <article className="panel">
           <div className="section-header-with-button">
             <h2>5. Positionen Beleg</h2>
-            <button
-              className="btn secondary"
-              disabled={busy || !currentReceipt?.receipt_items?.length}
-              onClick={() => autoAssignCategories(currentReceipt)}
-            >
-              Kostengruppen zuordnen
-            </button>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                className="btn secondary"
+                disabled={busy || !currentReceipt?.receipt_items?.length}
+                onClick={() => transferCostCenterToAll(currentReceipt)}
+                title="Kostenträger der ersten Position auf alle übertragen"
+              >
+                Kostentr. überн.
+              </button>
+              <button
+                className="btn secondary"
+                disabled={busy || !currentReceipt?.receipt_items?.length}
+                onClick={() => autoAssignCategories(currentReceipt)}
+              >
+                Kostengruppen zuordnen
+              </button>
+            </div>
           </div>
           {!currentReceipt && <p className="hint">Wähle oben einen Beleg aus.</p>}
           {currentReceipt && (
