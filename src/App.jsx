@@ -3999,7 +3999,23 @@ function App() {
             }
           }}
         >
-          <h2>6. Haushaltsbuch</h2>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <h2 style={{ margin: 0 }}>6. Haushaltsbuch</h2>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button className="btn secondary" onClick={() => setShowCostCenterModal(true)}>
+                Kostenträger bearbeiten
+              </button>
+              <button
+                className="btn secondary"
+                onClick={() => {
+                  setShowCostGroupModal(true);
+                  setCostGroupModalView("accounts");
+                }}
+              >
+                Konten bearbeiten
+              </button>
+            </div>
+          </div>
           <div className="totals">
             <div className="total-card main">
               <span>Gesamtausgaben:</span>
