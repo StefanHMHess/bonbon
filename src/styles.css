@@ -238,11 +238,13 @@ label {
 .color-select-wrapper select {
   background: transparent !important;
   border: none !important;
-  padding: 10px 12px;
+  padding: 2px 12px;
   width: 100%;
   font-weight: 700;
   color: inherit;
   cursor: pointer;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .color-select-wrapper select option {
