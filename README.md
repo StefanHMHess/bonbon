@@ -22,6 +22,7 @@ cp .env.example .env
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_DEFAULT_HOUSEHOLD_ID` (UUID aus `households`)
+- `VITE_AUTH_REDIRECT_URL` (z. B. `https://bonbox.netlify.app` fuer Bestaetigungs- und Reset-E-Mails)
 
 ## 2) Supabase vorbereiten
 
@@ -51,6 +52,11 @@ Hinweis: Für die Function müssen auch `SUPABASE_URL` und `SUPABASE_SERVICE_ROL
 npm run dev
 ```
 
+Lokale Ports:
+
+- Dev: `http://localhost:5173`
+- Preview: `http://localhost:4173`
+
 ## 4) Netlify Deployment
 
 BonBon kann als statisches Vite-Frontend auf Netlify deployed werden.
@@ -63,6 +69,7 @@ BonBon kann als statisches Vite-Frontend auf Netlify deployed werden.
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_DEFAULT_HOUSEHOLD_ID`
+- `VITE_AUTH_REDIRECT_URL`
 
 Die Datei [netlify.toml](netlify.toml) ist bereits vorbereitet und der SPA-Fallback liegt in [public/_redirects](public/_redirects).
 
