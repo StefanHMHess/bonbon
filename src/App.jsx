@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { defaultHouseholdId, isSupabaseConfigured, supabase } from "./lib/supabase";
 
 const euro = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
@@ -11,9 +11,9 @@ const dateTimeDE = new Intl.DateTimeFormat("de-DE", {
   timeStyle: "short",
 });
 const dateDE = new Intl.DateTimeFormat("de-DE", { dateStyle: "short" });
-const APP_VERSION = "v1.0.0";
+const APP_VERSION = "v1.0.1";
 const CURRENCY_OPTIONS = ["EUR", "TRY", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF"];
-const CURRENCY_SYMBOL = { EUR: "€", TRY: "₺", USD: "$", GBP: "£", CHF: "Fr", SEK: "kr", NOK: "kr", DKK: "kr", PLN: "zł", CZK: "Kč", HUF: "Ft" };
+const CURRENCY_SYMBOL = { EUR: "â‚¬", TRY: "â‚º", USD: "$", GBP: "Â£", CHF: "Fr", SEK: "kr", NOK: "kr", DKK: "kr", PLN: "zÅ‚", CZK: "KÄ", HUF: "Ft" };
 const AUTH_EMAIL_STORAGE_KEY = "bonbox_auth_email";
 const VERIFIED_EMAIL_STORAGE_KEY = "bonbox_verified_email";
 const EMERGENCY_ACCESS_ACTIVE_STORAGE_KEY = "bonbox_emergency_access_active";
@@ -38,17 +38,17 @@ const defaultCostGroups = [
     id: "grp-food",
     name: "Lebensmittel",
     color: "#059669",
-    keywords: ["aldi", "lidl", "rewe", "edeka", "netto", "supermarkt", "lebensmittel", "bäckerei", "baeckerei"],
+    keywords: ["aldi", "lidl", "rewe", "edeka", "netto", "supermarkt", "lebensmittel", "bÃ¤ckerei", "baeckerei"],
   },
   {
     id: "grp-restaurant",
     name: "Essen & Trinken",
     color: "#2DD4BF",
-    keywords: ["restaurant", "cafe", "café", "bar", "pizza", "burger", "liefer", "imbiss"],
+    keywords: ["restaurant", "cafe", "cafÃ©", "bar", "pizza", "burger", "liefer", "imbiss"],
   },
   {
     id: "grp-mobility",
-    name: "Mobilität",
+    name: "MobilitÃ¤t",
     color: "#06B6D4",
     keywords: ["tank", "shell", "aral", "uber", "taxi", "bahn", "db", "ticket", "park"],
   },
@@ -227,13 +227,13 @@ function inferCostGroupName(description, groups) {
     
     for (const keyword of keywords) {
       if (keyword && normalized.includes(normalizeText(keyword))) {
-        console.log(`[inferCostGroupName] ✓ MATCH: "${keyword}" found in "${normalized}" → group: "${group.name}"`);
+        console.log(`[inferCostGroupName] âœ“ MATCH: "${keyword}" found in "${normalized}" â†’ group: "${group.name}"`);
         return group.name;
       }
     }
   }
 
-  console.log(`[inferCostGroupName] ✗ NO MATCH for "${normalized}"`);
+  console.log(`[inferCostGroupName] âœ— NO MATCH for "${normalized}"`);
   return null;
 }
 
@@ -266,7 +266,7 @@ function parseAmountDE(value) {
 
 function normalizeCurrencyCode(value) {
   const normalized = String(value || "EUR").trim().toUpperCase();
-  if (normalized === "TL" || normalized === "TRY" || normalized === "TYR" || normalized === "₺") return "TRY";
+  if (normalized === "TL" || normalized === "TRY" || normalized === "TYR" || normalized === "â‚º") return "TRY";
   if (normalized === "EURO") return "EUR";
   return normalized || "EUR";
 }
@@ -458,8 +458,8 @@ function App() {
   const [showCostCenterModal, setShowCostCenterModal] = useState(false);
   const [costCenterDrafts, setCostCenterDrafts] = useState({});
   const [newCostCenter, setNewCostCenter] = useState({ name: "", color: "#18b6a3", sort_order: 100 });
-  const [newReceiptCostCenterId, setNewReceiptCostCenterId] = useState(null); // Kostenträger (wer trägt die Kosten)
-  const [newPaymentAccountId, setNewPaymentAccountId] = useState(null); // Zahlungskonto für neuen Beleg
+  const [newReceiptCostCenterId, setNewReceiptCostCenterId] = useState(null); // KostentrÃ¤ger (wer trÃ¤gt die Kosten)
+  const [newPaymentAccountId, setNewPaymentAccountId] = useState(null); // Zahlungskonto fÃ¼r neuen Beleg
   const [blankReceiptPreset, setBlankReceiptPreset] = useState({ receiptId: null, costCenterId: null });
   const [receiptMerchantDraft, setReceiptMerchantDraft] = useState("");
   const [authEmail, setAuthEmail] = useState(() => {
@@ -683,7 +683,7 @@ function App() {
     const groups = activeCostGroups();
     const colorByName = new Map(groups.map((group) => [group.name, group.color]));
     const year = new Date().getFullYear();
-    const monthLabels = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+    const monthLabels = ["Jan", "Feb", "MÃ¤r", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
     const monthlyGroupTotals = Array.from({ length: 12 }, () => new Map());
     const monthlyTotals = Array(12).fill(0);
     const yearlyGroupTotals = new Map();
@@ -796,7 +796,7 @@ function App() {
       });
   }, [receipts, familyAccounts, itemAllocations]);
 
-  // Totals by Cost Centers (Kostenträger) - new system using assigned_cost_center_id
+  // Totals by Cost Centers (KostentrÃ¤ger) - new system using assigned_cost_center_id
   const costCenterTotals = useMemo(() => {
     const costCenterById = new Map(costCenters.map((cc) => [cc.id, cc]));
     const totals = new Map();
@@ -819,7 +819,7 @@ function App() {
         const costCenter = costCenterById.get(costCenterId);
         return {
           id: costCenterId,
-          name: costCenter?.name || "Unbekannter Kostenträger",
+          name: costCenter?.name || "Unbekannter KostentrÃ¤ger",
           color: costCenter?.color || "#456279",
           total,
         };
@@ -919,7 +919,7 @@ function App() {
     return { rows, overall };
   }, [receipts, familyAccounts, itemAllocations]);
 
-  // Cost Centers (Kostenträger - wer trägt die Kosten?)
+  // Cost Centers (KostentrÃ¤ger - wer trÃ¤gt die Kosten?)
   const costCenterOptions = useMemo(() => {
     let next = [...costCenters];
     if (!next.length && costCenters.length === 0) {
@@ -1028,7 +1028,7 @@ function App() {
     }
 
     if (!error) {
-      setError("Wechselkurs konnte nicht geladen werden. Bitte später erneut versuchen.");
+      setError("Wechselkurs konnte nicht geladen werden. Bitte spÃ¤ter erneut versuchen.");
     }
     return 1;
   }
@@ -1047,7 +1047,7 @@ function App() {
     const currency = normalizeCurrencyCode(item?.currency || "EUR");
     if (currency === "EUR") return euro.format(Number(item?.amount || 0));
 
-    return `${amountDE.format(getItemOriginalAmount(item))} ${currency} ≈ ${euro.format(Number(item?.amount || 0))}`;
+    return `${amountDE.format(getItemOriginalAmount(item))} ${currency} â‰ˆ ${euro.format(Number(item?.amount || 0))}`;
   }
 
   async function recalculateReceiptTotal(receiptId) {
@@ -1088,7 +1088,7 @@ function App() {
     if (deleteResult.error) {
       return {
         ok: false,
-        message: `${rpcResult.error.message}. Bitte supabase_receipt_cleanup.sql ausführen.`,
+        message: `${rpcResult.error.message}. Bitte supabase_receipt_cleanup.sql ausfÃ¼hren.`,
       };
     }
 
@@ -1102,7 +1102,7 @@ function App() {
     }
 
     if ((verify.count || 0) > 0) {
-      return { ok: false, message: "Vorhandene Positionen konnten nicht entfernt werden. Bitte supabase_receipt_cleanup.sql ausführen." };
+      return { ok: false, message: "Vorhandene Positionen konnten nicht entfernt werden. Bitte supabase_receipt_cleanup.sql ausfÃ¼hren." };
     }
 
     return { ok: true };
@@ -1122,7 +1122,7 @@ function App() {
     if (deleteResult.error) {
       return {
         ok: false,
-        message: `${rpcResult.error.message}. Bitte supabase_receipt_cleanup.sql ausführen.`,
+        message: `${rpcResult.error.message}. Bitte supabase_receipt_cleanup.sql ausfÃ¼hren.`,
       };
     }
 
@@ -1136,7 +1136,7 @@ function App() {
     }
 
     if ((verify.count || 0) > 0) {
-      return { ok: false, message: "Beleg konnte nicht gelöscht werden. Bitte supabase_receipt_cleanup.sql ausführen." };
+      return { ok: false, message: "Beleg konnte nicht gelÃ¶scht werden. Bitte supabase_receipt_cleanup.sql ausfÃ¼hren." };
     }
 
     return { ok: true };
@@ -1365,7 +1365,7 @@ function App() {
 
     const value = String(authEmail || "").trim().toLowerCase();
     if (!value || !value.includes("@")) {
-      setError("Bitte eine gültige E-Mail-Adresse eingeben.");
+      setError("Bitte eine gÃ¼ltige E-Mail-Adresse eingeben.");
       return;
     }
 
@@ -1392,7 +1392,7 @@ function App() {
         setMagicLinkNow(Date.now());
         setMagicLinkCooldownUntil(until);
         safeStorageSet(MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY, until);
-        setError("E-Mail-Limit bei Supabase erreicht. Ohne Custom SMTP sind oft nur wenige Mails pro Stunde erlaubt. Bitte später erneut versuchen oder SMTP aktivieren.");
+        setError("E-Mail-Limit bei Supabase erreicht. Ohne Custom SMTP sind oft nur wenige Mails pro Stunde erlaubt. Bitte spÃ¤ter erneut versuchen oder SMTP aktivieren.");
       } else {
         setError(rawMessage);
       }
@@ -1422,7 +1422,7 @@ function App() {
     const password = String(authPassword || "");
 
     if (!email || !email.includes("@")) {
-      setError("Bitte eine gültige E-Mail-Adresse eingeben.");
+      setError("Bitte eine gÃ¼ltige E-Mail-Adresse eingeben.");
       return;
     }
 
@@ -1459,7 +1459,7 @@ function App() {
     const redirectUrl = getMagicLinkRedirectUrl();
 
     if (!email || !email.includes("@")) {
-      setError("Bitte eine gültige E-Mail-Adresse eingeben.");
+      setError("Bitte eine gÃ¼ltige E-Mail-Adresse eingeben.");
       return;
     }
 
@@ -1495,7 +1495,7 @@ function App() {
     const needsEmailConfirmation = !data?.session;
     setSuccess(
       needsEmailConfirmation
-        ? "Zugang angelegt. Bitte die Bestätigungs-E-Mail öffnen und dich danach mit Passwort anmelden."
+        ? "Zugang angelegt. Bitte die BestÃ¤tigungs-E-Mail Ã¶ffnen und dich danach mit Passwort anmelden."
         : "Zugang angelegt. Falls noch keine Freigabe besteht, muss ein Admin dich einmal freischalten."
     );
     setAuthPassword("");
@@ -1506,7 +1506,7 @@ function App() {
 
     const email = String(authEmail || "").trim().toLowerCase();
     if (!email || !email.includes("@")) {
-      setError("Bitte eine gültige E-Mail-Adresse eingeben.");
+      setError("Bitte eine gÃ¼ltige E-Mail-Adresse eingeben.");
       return;
     }
 
@@ -1531,7 +1531,7 @@ function App() {
       return;
     }
 
-    setSuccess("E-Mail zum Setzen oder Zurücksetzen des Passworts wurde gesendet.");
+    setSuccess("E-Mail zum Setzen oder ZurÃ¼cksetzen des Passworts wurde gesendet.");
   }
 
   function activateEmergencyAccess() {
@@ -1559,7 +1559,7 @@ function App() {
 
     const email = String(value || authEmail || "").trim().toLowerCase();
     if (!email || !email.includes("@")) {
-      if (!silent) setError("Bitte eine gültige E-Mail-Adresse eingeben.");
+      if (!silent) setError("Bitte eine gÃ¼ltige E-Mail-Adresse eingeben.");
       return false;
     }
 
@@ -1787,14 +1787,14 @@ function App() {
 
     if (rpcError) {
       setBootstrapBusy(false);
-      setError(`${rpcError.message}. Bitte supabase_user_access.sql erneut in Supabase ausführen.`);
+      setError(`${rpcError.message}. Bitte supabase_user_access.sql erneut in Supabase ausfÃ¼hren.`);
       return;
     }
 
     setBootstrapBusy(false);
 
     if (!data) {
-      setError("Bootstrap nicht möglich: Es existiert bereits ein freigegebener Admin.");
+      setError("Bootstrap nicht mÃ¶glich: Es existiert bereits ein freigegebener Admin.");
       return;
     }
 
@@ -1867,7 +1867,7 @@ function App() {
     }
     
     // Debug receipt items
-    console.log("🔍 DEBUG loadReceipts - Receipt Items:");
+    console.log("ðŸ” DEBUG loadReceipts - Receipt Items:");
     (data || []).forEach((receipt, i) => {
       const itemsWithAlloc = receipt.receipt_items?.filter(item => {
         // Need to check after allocations load, so just show count
@@ -1928,7 +1928,7 @@ function App() {
     if (accountError) {
       setFamilyAccounts([]);
       setAccountCatalogReady(false);
-      setAccountCatalogMessage(accountError.message || "Kostenträger-Tabelle ist noch nicht eingerichtet.");
+      setAccountCatalogMessage(accountError.message || "KostentrÃ¤ger-Tabelle ist noch nicht eingerichtet.");
       return;
     }
 
@@ -1963,7 +1963,7 @@ function App() {
       return;
     }
 
-    // Transform names to Kostenträger format (Familie -> Familienkosten, etc.)
+    // Transform names to KostentrÃ¤ger format (Familie -> Familienkosten, etc.)
     const next = (data || []).map(cc => ({
       ...cc,
       name: cc.name === "Familie" ? "Familienkosten" 
@@ -1996,7 +1996,7 @@ function App() {
   async function saveCostCenter(centerId) {
     if (!centerId) return;
     if (!costCenterDrafts[centerId]?.name?.trim()) {
-      setError("Kostenträger braucht einen Namen.");
+      setError("KostentrÃ¤ger braucht einen Namen.");
       return;
     }
 
@@ -2013,12 +2013,12 @@ function App() {
       setError("Fehler beim Speichern: " + error.message);
       return;
     }
-    setSuccess("Kostenträger gespeichert.");
+    setSuccess("KostentrÃ¤ger gespeichert.");
     await loadCostCenters();
   }
 
   async function deleteCostCenter(centerId) {
-    if (!centerId || !window.confirm("Kostenträger wirklich löschen?")) return;
+    if (!centerId || !window.confirm("KostentrÃ¤ger wirklich lÃ¶schen?")) return;
 
     setBusy(true);
     const { error } = await supabase
@@ -2029,17 +2029,17 @@ function App() {
 
     setBusy(false);
     if (error) {
-      setError("Fehler beim Löschen: " + error.message);
+      setError("Fehler beim LÃ¶schen: " + error.message);
       return;
     }
-    setSuccess("Kostenträger gelöscht.");
+    setSuccess("KostentrÃ¤ger gelÃ¶scht.");
     setNewReceiptCostCenterId(null);
     await loadCostCenters();
   }
 
   async function addNewCostCenter() {
     if (!newCostCenter.name?.trim()) {
-      setError("Bitte Namen für neuen Kostenträger eingeben.");
+      setError("Bitte Namen fÃ¼r neuen KostentrÃ¤ger eingeben.");
       return;
     }
 
@@ -2055,10 +2055,10 @@ function App() {
 
     setBusy(false);
     if (error) {
-      setError("Fehler beim Hinzufügen: " + error.message);
+      setError("Fehler beim HinzufÃ¼gen: " + error.message);
       return;
     }
-    setSuccess("Kostenträger hinzugefügt.");
+    setSuccess("KostentrÃ¤ger hinzugefÃ¼gt.");
     setNewCostCenter({ name: "", color: "#18b6a3", sort_order: 100 });
     await loadCostCenters();
   }
@@ -2079,7 +2079,7 @@ function App() {
       return;
     }
 
-    console.log("🔍 DEBUG loadItemAllocations:");
+    console.log("ðŸ” DEBUG loadItemAllocations:");
     console.log("  Requested itemIds:", itemIds);
     console.log("  Loaded allocations:", data);
     if (data?.length) {
@@ -2141,17 +2141,17 @@ function App() {
     }
 
     setItemAllocations((prev) => prev.filter((x) => x.receipt_item_id !== itemId));
-    setSuccess("Allocation gelöscht.");
+    setSuccess("Allocation gelÃ¶scht.");
     return true;
   }
 
   async function fixWrongAllocations() {
     // Stefan's 6 items should be allocated to Familienkonto
-    // Item IDs from Stefan's receipts (Bäcker & Netto)
+    // Item IDs from Stefan's receipts (BÃ¤cker & Netto)
     const stefanItemIds = [
       '9e7cc596-fa88-445d-8498-26d820adee1c', // KREPPEL
       'c83fea1e-4534-4ea7-9059-b93adea19fdd', // Pflaumenkreppel
-      '30afd55b-4412-46d0-984b-8ee0d517430d', // Eierlikörkreppel
+      '30afd55b-4412-46d0-984b-8ee0d517430d', // EierlikÃ¶rkreppel
       'a80102fc-c53b-493e-8948-35533d1663b4', // Kreppel mit Nutella
       'c2f94946-3c88-431d-8c18-3f4c77813fa8', // Vanillekreppel
       'e2560560-e60a-41f8-b285-87b0bcd12af0', // Papiertasche
@@ -2182,7 +2182,7 @@ function App() {
       console.error("Delete error:", deleteError);
     }
     
-    // Then create correct allocations: Stefan items → Familienkonto
+    // Then create correct allocations: Stefan items â†’ Familienkonto
     const familienkontoId = defaultFamilyAccount.id;
     const allocationRows = stefanItemIds.map((itemId) => ({
       receipt_item_id: itemId,
@@ -2199,7 +2199,7 @@ function App() {
       return;
     }
     
-    setSuccess("✓ Allocations repariert: Stefans Items gehen zu Familienkonto!");
+    setSuccess("âœ“ Allocations repariert: Stefans Items gehen zu Familienkonto!");
     await loadItemAllocations(receipts.flatMap((r) => (r.receipt_items || []).map((i) => i.id)).filter(Boolean));
   }
 
@@ -2212,14 +2212,14 @@ function App() {
       console.log("Assigning cost center:", { itemId: item.id, costCenterId, patchData });
       
       await patchItem(item.id, patchData);
-      setSuccess("Kostenträger aktualisiert.");
+      setSuccess("KostentrÃ¤ger aktualisiert.");
     } catch (err) {
       const errMsg = String(err?.message || err);
       console.error("assignItemToCostCenter error:", err, errMsg);
       
       if (errMsg.includes("assigned_cost_center_id") || errMsg.includes("does not exist")) {
         setShowSetupModal(true);
-        setError("⚠️ Die Kostenträger-Spalte muss erst in der Datenbank erstellt werden.");
+        setError("âš ï¸ Die KostentrÃ¤ger-Spalte muss erst in der Datenbank erstellt werden.");
       } else {
         setError(`Fehler beim Speichern: ${errMsg}`);
       }
@@ -2229,7 +2229,7 @@ function App() {
   async function assignItemToAccount(item, accountId) {
     const ok = await setSingleItemAllocation(item.id, accountId, Number(item.amount || 0));
     if (!ok) return;
-    setSuccess("Kostenträger aktualisiert.");
+    setSuccess("KostentrÃ¤ger aktualisiert.");
   }
 
   function updateCostGroupDraft(groupId, key, value) {
@@ -2302,14 +2302,14 @@ function App() {
       return;
     }
 
-    setSuccess("Kostengruppe gelöscht.");
+    setSuccess("Kostengruppe gelÃ¶scht.");
     await loadCostGroups();
     await loadReceipts();
   }
 
   async function addCostGroup() {
     if (!newCostGroup.name.trim()) {
-      setError("Bitte Name für die neue Kostengruppe eingeben.");
+      setError("Bitte Name fÃ¼r die neue Kostengruppe eingeben.");
       return;
     }
 
@@ -2338,7 +2338,7 @@ function App() {
       sortOrder: 100,
     });
 
-    setSuccess("Kostengruppe hinzugefügt.");
+    setSuccess("Kostengruppe hinzugefÃ¼gt.");
     await loadCostGroups();
     await loadReceipts();
   }
@@ -2346,7 +2346,7 @@ function App() {
   async function saveFamilyAccount(accountId) {
     const draft = accountDrafts[accountId];
     if (!draft?.name?.trim()) {
-      setError("Kostenträger braucht einen Namen.");
+      setError("KostentrÃ¤ger braucht einen Namen.");
       return;
     }
 
@@ -2371,14 +2371,14 @@ function App() {
       return;
     }
 
-    setSuccess("Kostenträger gespeichert.");
+    setSuccess("KostentrÃ¤ger gespeichert.");
     await loadFamilyAccounts();
   }
 
   async function deleteFamilyAccount(account) {
     if (!account?.id) return;
     if (account.account_type === "family") {
-      setError("Das Familienkonto kann nicht gelöscht werden.");
+      setError("Das Familienkonto kann nicht gelÃ¶scht werden.");
       return;
     }
 
@@ -2398,7 +2398,7 @@ function App() {
       return;
     }
 
-    setSuccess("Kostenträger gelöscht.");
+    setSuccess("KostentrÃ¤ger gelÃ¶scht.");
     await loadFamilyAccounts();
     await loadItemAllocations(receipts.flatMap((r) => (r.receipt_items || []).map((i) => i.id)).filter(Boolean));
   }
@@ -2433,7 +2433,7 @@ function App() {
       accountType: "person",
       sortOrder: 100,
     });
-    setSuccess("Kostenträger hinzugefügt.");
+    setSuccess("KostentrÃ¤ger hinzugefÃ¼gt.");
     await loadFamilyAccounts();
   }
 
@@ -2454,17 +2454,17 @@ function App() {
     }
 
     const parsed = aiResult.data || {};
-    console.error("🚨🚨🚨 PARSED DATA 🚨🚨🚨", { merchant: parsed.merchant, itemCount: parsed.items?.length });
+    console.error("ðŸš¨ðŸš¨ðŸš¨ PARSED DATA ðŸš¨ðŸš¨ðŸš¨", { merchant: parsed.merchant, itemCount: parsed.items?.length });
     
     const rawCurrency = normalizeCurrencyCode(parsed.currency || "EUR");
     const exchangeRate = await getExchangeRateToEur(rawCurrency);
     const items = Array.isArray(parsed.items) ? parsed.items : [];
     
-    console.error("🚨 MERCHANT CHECK - Merchant: '" + parsed.merchant + "' activeCostGroups:", activeCostGroups().length);
+    console.error("ðŸš¨ MERCHANT CHECK - Merchant: '" + parsed.merchant + "' activeCostGroups:", activeCostGroups().length);
     
     // Determine cost group based on merchant name
     const merchantCategory = inferCostGroupName(parsed.merchant || "", activeCostGroups());
-    console.error("🚨 MERCHANT CATEGORY RESULT: '" + merchantCategory + "'");
+    console.error("ðŸš¨ MERCHANT CATEGORY RESULT: '" + merchantCategory + "'");
     
     const convertedItems = items.map((item) => {
       const originalAmount = roundMoney(item.amount || 0);
@@ -2667,7 +2667,7 @@ function App() {
       setNewReceiptCostCenterId(null);
       setNewPaymentAccountId(null);
 
-      setSuccess("Beleg wurde analysiert und ins Haushaltsbuch übernommen.");
+      setSuccess("Beleg wurde analysiert und ins Haushaltsbuch Ã¼bernommen.");
       await loadReceipts();
       setSelectedReceipt(receiptId);
     } catch (err) {
@@ -2714,7 +2714,7 @@ function App() {
 
   async function deleteReceipt(receipt) {
     if (!receipt?.id) return;
-    if (!window.confirm("Diesen Beleg wirklich löschen? Alle Positionen und Zuordnungen werden entfernt.")) {
+    if (!window.confirm("Diesen Beleg wirklich lÃ¶schen? Alle Positionen und Zuordnungen werden entfernt.")) {
       return;
     }
 
@@ -2730,7 +2730,7 @@ function App() {
       return;
     }
 
-    setSuccess("Beleg wurde gelöscht.");
+    setSuccess("Beleg wurde gelÃ¶scht.");
     setSelectedReceipt((prev) => (prev === receipt.id ? null : prev));
     await loadReceipts();
   }
@@ -2764,7 +2764,7 @@ function App() {
       return;
     }
 
-    setSuccess("Blankobeleg erstellt. Positionen können jetzt manuell ergänzt werden.");
+    setSuccess("Blankobeleg erstellt. Positionen kÃ¶nnen jetzt manuell ergÃ¤nzt werden.");
     await loadReceipts();
     setBlankReceiptPreset({ receiptId: data?.id || null, costCenterId: carryCostCenterId });
     setSelectedReceipt(data?.id || null);
@@ -2837,7 +2837,7 @@ function App() {
       // Check if this is a column-missing error
       if (errMsg.includes("assigned_cost_center_id") || errMsg.includes("does not exist")) {
         setShowSetupBanner(true);  // Show setup banner
-        setError("⚠️ Die Kostenträger-Spalte muss erst in der Datenbank erstellt werden.");
+        setError("âš ï¸ Die KostentrÃ¤ger-Spalte muss erst in der Datenbank erstellt werden.");
       } else {
         setError(`Update-Fehler: ${errMsg}`);
       }
@@ -2845,7 +2845,7 @@ function App() {
     }
 
     if (!data || data.length === 0) {
-      setError("Keine Zeilen aktualisiert - möglicherweise existiert das Item nicht");
+      setError("Keine Zeilen aktualisiert - mÃ¶glicherweise existiert das Item nicht");
       console.warn("patchItem: No rows affected", { itemId, patch });
       return;
     }
@@ -2952,7 +2952,7 @@ function App() {
     const parsed = parseAmountDE(rawValue);
 
     if (parsed === null) {
-      setError("Bitte einen gültigen Betrag eingeben, z. B. 1.234,56.");
+      setError("Bitte einen gÃ¼ltigen Betrag eingeben, z. B. 1.234,56.");
       return;
     }
 
@@ -3021,7 +3021,7 @@ function App() {
 
     // First check merchant name, then fall back to item descriptions
     const merchantCategory = inferCostGroupName(receipt.merchant || "", groups);
-    console.log(`[autoAssignCategories] Merchant: "${receipt.merchant}" → Category: "${merchantCategory}"`);
+    console.log(`[autoAssignCategories] Merchant: "${receipt.merchant}" â†’ Category: "${merchantCategory}"`);
 
     for (const item of items) {
       const category = merchantCategory || inferCostGroupName(item.description, groups);
@@ -3046,7 +3046,7 @@ function App() {
     const items = receipt?.receipt_items || [];
     
     if (!items.length || !items[0]?.assigned_cost_center_id) {
-      setError("Die erste Position hat keinen Kostenträger. Bitte erst zuweisen.");
+      setError("Die erste Position hat keinen KostentrÃ¤ger. Bitte erst zuweisen.");
       return;
     }
 
@@ -3070,7 +3070,7 @@ function App() {
     }
 
     setBusy(false);
-    setSuccess("Kostenträger auf alle Positionen übertragen.");
+    setSuccess("KostentrÃ¤ger auf alle Positionen Ã¼bertragen.");
     await loadReceipts();
   }
 
@@ -3098,7 +3098,7 @@ function App() {
     }
 
     setBusy(false);
-    setSuccess("Kostenträger für alle Positionen aktualisiert.");
+    setSuccess("KostentrÃ¤ger fÃ¼r alle Positionen aktualisiert.");
     await loadReceipts();
   }
 
@@ -3201,7 +3201,7 @@ function App() {
       }
 
       setBusy(false);
-      setSuccess(`✓ Ausgleichszahlung "${debtorAccount.name} → ${creditorAccount.name}: ${euro.format(amount)}" erstellt!`);
+      setSuccess(`âœ“ Ausgleichszahlung "${debtorAccount.name} â†’ ${creditorAccount.name}: ${euro.format(amount)}" erstellt!`);
       await loadReceipts();
       setSelectedReceipt(debtorReceiptId);
     } catch (err) {
@@ -3212,7 +3212,7 @@ function App() {
 
   async function deleteReceiptItem(item) {
     if (!item?.id) return;
-    if (!window.confirm("Position wirklich löschen?")) return;
+    if (!window.confirm("Position wirklich lÃ¶schen?")) return;
 
     setBusy(true);
     setError("");
@@ -3227,7 +3227,7 @@ function App() {
 
     if (allocError) {
       setBusy(false);
-      setError(`Fehler beim Löschen von Zuordnungen: ${allocError.message}`);
+      setError(`Fehler beim LÃ¶schen von Zuordnungen: ${allocError.message}`);
       return;
     }
 
@@ -3239,7 +3239,7 @@ function App() {
 
     if (itemError) {
       setBusy(false);
-      setError(`Fehler beim Löschen der Position: ${itemError.message}`);
+      setError(`Fehler beim LÃ¶schen der Position: ${itemError.message}`);
       return;
     }
 
@@ -3248,7 +3248,7 @@ function App() {
     }
 
     setBusy(false);
-    setSuccess("Position gelöscht.");
+    setSuccess("Position gelÃ¶scht.");
     await loadReceipts();
   }
 
@@ -3265,7 +3265,7 @@ function App() {
     setPreviewBusy(false);
 
     if (signError || !data?.signedUrl) {
-      setError(signError?.message || "Beleg konnte nicht geöffnet werden.");
+      setError(signError?.message || "Beleg konnte nicht geÃ¶ffnet werden.");
       return;
     }
 
@@ -3273,7 +3273,7 @@ function App() {
       const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
       
       if (isPdf) {
-        // PDFs: mit Google Docs Viewer öffnen
+        // PDFs: mit Google Docs Viewer Ã¶ffnen
         const encodedUrl = encodeURIComponent(data.signedUrl);
         const googleViewerUrl = `https://docs.google.com/gview?url=${encodedUrl}&embedded=true`;
         // iOS: target="_blank" in window.open verwenden
@@ -3283,7 +3283,7 @@ function App() {
           window.location.href = googleViewerUrl;
         }
       } else {
-        // Bilder: direkt öffnen
+        // Bilder: direkt Ã¶ffnen
         const win = window.open(data.signedUrl, "_blank", "noopener");
         if (!win) {
           // Fallback wenn window.open blockiert
@@ -3291,7 +3291,7 @@ function App() {
         }
       }
     } catch (err) {
-      setError(err.message || "Beleg konnte nicht geöffnet werden.");
+      setError(err.message || "Beleg konnte nicht geÃ¶ffnet werden.");
     }
   }
 
@@ -3323,7 +3323,7 @@ function App() {
           <img src="/bonbon-logo.svg" alt="BonBox" className="hero-logo" />
           <div>
             <h1>BonBox</h1>
-            <p>Bitte anmelden, um dein Haushaltsbuch zu öffnen.</p>
+            <p>Bitte anmelden, um dein Haushaltsbuch zu Ã¶ffnen.</p>
           </div>
           <span className="version-badge">{APP_VERSION}</span>
         </header>
@@ -3393,7 +3393,7 @@ function App() {
           <img src="/bonbon-logo.svg" alt="BonBox" className="hero-logo" />
           <div>
             <h1>BonBox</h1>
-            <p>Dein Konto wird geprüft.</p>
+            <p>Dein Konto wird geprÃ¼ft.</p>
           </div>
           <span className="version-badge">{APP_VERSION}</span>
         </header>
@@ -3411,7 +3411,7 @@ function App() {
               Status aktualisieren
             </button>
             <button className="btn" disabled={bootstrapBusy} onClick={bootstrapFirstAdmin}>
-              {bootstrapBusy ? "Prüfe..." : "Als ersten Admin freischalten"}
+              {bootstrapBusy ? "PrÃ¼fe..." : "Als ersten Admin freischalten"}
             </button>
             <button className="btn secondary" onClick={signOut}>Abmelden</button>
           </div>
@@ -3440,18 +3440,18 @@ function App() {
         <section className="panel setup-panel" style={{ background: "#fff3cd", borderColor: "#ffc107", borderLeft: "4px solid #ffc107" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div style={{ flex: 1 }}>
-              <h2 style={{ color: "#856404", margin: "0 0 12px 0" }}>🚀 Setup erforderlich!</h2>
+              <h2 style={{ color: "#856404", margin: "0 0 12px 0" }}>ðŸš€ Setup erforderlich!</h2>
               <p style={{ color: "#856404", margin: "0 0 12px 0" }}>
-                <strong>Die Kostenträger-Spalte existiert NICHT in der Datenbank!</strong> Deswegen werden Ihre Kostenträger-Auswahlen nicht gespeichert.
+                <strong>Die KostentrÃ¤ger-Spalte existiert NICHT in der Datenbank!</strong> Deswegen werden Ihre KostentrÃ¤ger-Auswahlen nicht gespeichert.
               </p>
               <p style={{ color: "#856404", margin: "0 0 12px 0" }}>
-                Öffnen Sie diese Setup-Seite und führen Sie die SQL aus:
+                Ã–ffnen Sie diese Setup-Seite und fÃ¼hren Sie die SQL aus:
               </p>
               <button className="btn" onClick={() => { window.open('/setup-assigned-cost-center.html', '_blank'); }}>
-                📋 Setup-Anleitung öffnen
+                ðŸ“‹ Setup-Anleitung Ã¶ffnen
               </button>
               <p style={{ color: "#856404", fontSize: "12px", margin: "8px 0 0 0" }}>
-                Nach der Setup können Sie Kostenträger auswählen und speichern.
+                Nach der Setup kÃ¶nnen Sie KostentrÃ¤ger auswÃ¤hlen und speichern.
               </p>
             </div>
             <button 
@@ -3469,7 +3469,7 @@ function App() {
         <section className="panel setup-panel">
           <h2>Konfiguration fehlt</h2>
           <p className="hint error">
-            Bitte in .env die Werte für VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY und
+            Bitte in .env die Werte fÃ¼r VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY und
             VITE_DEFAULT_HOUSEHOLD_ID setzen.
           </p>
         </section>
@@ -3523,12 +3523,12 @@ function App() {
                   }}
                   title="Sektion ein-/ausblenden"
                 >
-                  {collapsedSections.has("cost-center-form") ? "⊕" : "⊖"}
+                  {collapsedSections.has("cost-center-form") ? "âŠ•" : "âŠ–"}
                 </button>
-                <h2 style={{ margin: 0 }}>1. Kosten für (Kostenträger)</h2>
+                <h2 style={{ margin: 0 }}>1. Kosten fÃ¼r (KostentrÃ¤ger)</h2>
               </div>
               <button className="btn secondary" onClick={() => setShowCostCenterModal(true)}>
-                Kostenträger bearbeiten
+                KostentrÃ¤ger bearbeiten
               </button>
             </div>
             {!collapsedSections.has("cost-center-form") && (
@@ -3538,7 +3538,7 @@ function App() {
                   value={newReceiptCostCenterId || ""}
                   onChange={(e) => setNewReceiptCostCenterId(e.target.value || null)}
                 >
-                  <option value="">-- Wähle Kostenträger --</option>
+                  <option value="">-- WÃ¤hle KostentrÃ¤ger --</option>
                   {costCenterOptions.map((costCenter) => (
                     <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
                   ))}
@@ -3566,7 +3566,7 @@ function App() {
                   }}
                   title="Sektion ein-/ausblenden"
                 >
-                  {collapsedSections.has("payment-account-form") ? "⊕" : "⊖"}
+                  {collapsedSections.has("payment-account-form") ? "âŠ•" : "âŠ–"}
                 </button>
                 <h2 style={{ margin: 0 }}>2. Zahlung von (Zahlungskonto)</h2>
               </div>
@@ -3587,7 +3587,7 @@ function App() {
                 onChange={(e) => setNewPaymentAccountId(e.target.value || null)}
                 disabled={busy}
               >
-                <option value="">-- Wähle Zahlungskonto --</option>
+                <option value="">-- WÃ¤hle Zahlungskonto --</option>
                 {paymentAccountOptions.map((account) => (
                   <option key={account.id} value={account.id}>{account.name}</option>
                 ))}
@@ -3613,7 +3613,7 @@ function App() {
                 }}
                 title="Sektion ein-/ausblenden"
               >
-                {collapsedSections.has("receipt-capture-form") ? "⊕" : "⊖"}
+                {collapsedSections.has("receipt-capture-form") ? "âŠ•" : "âŠ–"}
               </button>
               <h2 style={{ margin: 0 }}>3. Beleg erfassen</h2>
             </div>
@@ -3628,10 +3628,10 @@ function App() {
                 onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
               />
               <label htmlFor="receipt-file" className="btn secondary file-trigger">
-                Beleg auswählen/Foto aufnehmen
+                Beleg auswÃ¤hlen/Foto aufnehmen
               </label>
               <p className="hint file-name">
-                {selectedFile ? `Ausgewählt: ${selectedFile.name}` : "Noch keine Datei ausgewählt"}
+                {selectedFile ? `AusgewÃ¤hlt: ${selectedFile.name}` : "Noch keine Datei ausgewÃ¤hlt"}
               </p>
             </div>
             <button className="btn" disabled={!selectedFile || busy || !hasSetup} onClick={uploadAndExtract}>
@@ -3648,13 +3648,13 @@ function App() {
           <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>
-                {costGroupModalView === "summary" && "Kostenübersicht"}
-                {costGroupModalView === "groupDetails" && "Detaillierte Übersicht nach Kostengruppen"}
-                {costGroupModalView === "accountDetails" && "Detaillierte Übersicht nach Kostenträgern"}
+                {costGroupModalView === "summary" && "KostenÃ¼bersicht"}
+                {costGroupModalView === "groupDetails" && "Detaillierte Ãœbersicht nach Kostengruppen"}
+                {costGroupModalView === "accountDetails" && "Detaillierte Ãœbersicht nach KostentrÃ¤gern"}
                 {costGroupModalView === "edit" && "Kostengruppen bearbeiten"}
                 {costGroupModalView === "accounts" && "Zahlungskonten bearbeiten"}
               </h3>
-              <button className="btn secondary" onClick={() => setShowCostGroupModal(false)}>Schließen</button>
+              <button className="btn secondary" onClick={() => setShowCostGroupModal(false)}>SchlieÃŸen</button>
             </div>
 
             {costGroupModalView === "summary" && (
@@ -3665,7 +3665,7 @@ function App() {
                     setCostGroupModalView("groupDetails");
                   }
                 }}>
-                  <h3>Kostenübersicht nach Kostengruppen</h3>
+                  <h3>KostenÃ¼bersicht nach Kostengruppen</h3>
                   {!costGroupTotals.length && <p className="hint">Noch keine Positionen mit Kosten vorhanden.</p>}
                   {!!costGroupTotals.length && (
                     <div className="cost-group-summary-list">
@@ -3680,7 +3680,7 @@ function App() {
                       ))}
                     </div>
                   )}
-                  <p className="hint">Tippen für Detailansicht.</p>
+                  <p className="hint">Tippen fÃ¼r Detailansicht.</p>
                 </div>
 
                 <div className="cost-group-summary clickable-summary" role="button" tabIndex={0} onClick={() => setCostGroupModalView("accountDetails")} onKeyDown={(e) => {
@@ -3689,7 +3689,7 @@ function App() {
                     setCostGroupModalView("accountDetails");
                   }
                 }}>
-                  <h3>Kostenübersicht nach Kostenträgern</h3>
+                  <h3>KostenÃ¼bersicht nach KostentrÃ¤gern</h3>
                   {!costCenterTotals.length && <p className="hint">Noch keine Kosten vorhanden.</p>}
                   {!!costCenterTotals.length && (
                     <div className="cost-group-summary-list">
@@ -3704,7 +3704,7 @@ function App() {
                       ))}
                     </div>
                   )}
-                  <p className="hint">Tippen für Detailansicht.</p>
+                  <p className="hint">Tippen fÃ¼r Detailansicht.</p>
                 </div>
 
                 <div className="cost-group-summary-actions">
@@ -3716,19 +3716,19 @@ function App() {
             {costGroupModalView === "groupDetails" && (
               <>
                 <div className="cost-group-summary-actions">
-                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>Zurück zur Übersicht</button>
+                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>ZurÃ¼ck zur Ãœbersicht</button>
                 </div>
                 <div className="detail-stats-grid">
                   <div className="detail-stat-card"><span>Gesamt</span><strong>{euro.format(costGroupDetails.overall.total)}</strong></div>
                   <div className="detail-stat-card"><span>Laufendes Jahr</span><strong>{euro.format(costGroupDetails.overall.yearTotal)}</strong></div>
                   <div className="detail-stat-card"><span>Laufender Monat</span><strong>{euro.format(costGroupDetails.overall.monthTotal)}</strong></div>
-                  <div className="detail-stat-card"><span>Ø pro Monat</span><strong>{euro.format(costGroupDetails.overall.averagePerMonth)}</strong></div>
+                  <div className="detail-stat-card"><span>Ã˜ pro Monat</span><strong>{euro.format(costGroupDetails.overall.averagePerMonth)}</strong></div>
                 </div>
                 {!costGroupDetails.rows.length && <p className="hint">Noch keine Positionen mit Kosten vorhanden.</p>}
                 {!!costGroupDetails.rows.length && (
                   <div className="detail-table">
                     <div className="detail-table-head">
-                      <span>Name</span><span>Gesamt</span><span>Laufendes Jahr</span><span>Laufender Monat</span><span>Ø pro Monat</span>
+                      <span>Name</span><span>Gesamt</span><span>Laufendes Jahr</span><span>Laufender Monat</span><span>Ã˜ pro Monat</span>
                     </div>
                     {costGroupDetails.rows.map((row) => (
                       <div className="detail-table-row" key={row.name}>
@@ -3736,7 +3736,7 @@ function App() {
                         <strong className="detail-metric" data-label="Gesamt">{euro.format(row.total)}</strong>
                         <strong className="detail-metric" data-label="Laufendes Jahr">{euro.format(row.yearTotal)}</strong>
                         <strong className="detail-metric" data-label="Laufender Monat">{euro.format(row.monthTotal)}</strong>
-                        <strong className="detail-metric" data-label="Ø pro Monat">{euro.format(row.averagePerMonth)}</strong>
+                        <strong className="detail-metric" data-label="Ã˜ pro Monat">{euro.format(row.averagePerMonth)}</strong>
                       </div>
                     ))}
                   </div>
@@ -3747,19 +3747,19 @@ function App() {
             {costGroupModalView === "accountDetails" && (
               <>
                 <div className="cost-group-summary-actions">
-                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>Zurück zur Übersicht</button>
+                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>ZurÃ¼ck zur Ãœbersicht</button>
                 </div>
                 <div className="detail-stats-grid">
                   <div className="detail-stat-card"><span>Gesamt</span><strong>{euro.format(accountDetails.overall.total)}</strong></div>
                   <div className="detail-stat-card"><span>Laufendes Jahr</span><strong>{euro.format(accountDetails.overall.yearTotal)}</strong></div>
                   <div className="detail-stat-card"><span>Laufender Monat</span><strong>{euro.format(accountDetails.overall.monthTotal)}</strong></div>
-                  <div className="detail-stat-card"><span>Ø pro Monat</span><strong>{euro.format(accountDetails.overall.averagePerMonth)}</strong></div>
+                  <div className="detail-stat-card"><span>Ã˜ pro Monat</span><strong>{euro.format(accountDetails.overall.averagePerMonth)}</strong></div>
                 </div>
                 {!accountDetails.rows.length && <p className="hint">Noch keine Kosten vorhanden.</p>}
                 {!!accountDetails.rows.length && (
                   <div className="detail-table">
                     <div className="detail-table-head">
-                      <span>Name</span><span>Gesamt</span><span>Laufendes Jahr</span><span>Laufender Monat</span><span>Ø pro Monat</span>
+                      <span>Name</span><span>Gesamt</span><span>Laufendes Jahr</span><span>Laufender Monat</span><span>Ã˜ pro Monat</span>
                     </div>
                     {accountDetails.rows.map((row) => (
                       <div className="detail-table-row" key={row.id}>
@@ -3767,7 +3767,7 @@ function App() {
                         <strong className="detail-metric" data-label="Gesamt">{euro.format(row.total)}</strong>
                         <strong className="detail-metric" data-label="Laufendes Jahr">{euro.format(row.yearTotal)}</strong>
                         <strong className="detail-metric" data-label="Laufender Monat">{euro.format(row.monthTotal)}</strong>
-                        <strong className="detail-metric" data-label="Ø pro Monat">{euro.format(row.averagePerMonth)}</strong>
+                        <strong className="detail-metric" data-label="Ã˜ pro Monat">{euro.format(row.averagePerMonth)}</strong>
                       </div>
                     ))}
                   </div>
@@ -3778,17 +3778,17 @@ function App() {
             {costGroupModalView === "edit" && (
               <>
                 <div className="cost-group-summary-actions">
-                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>Zurück zur Übersicht</button>
+                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>ZurÃ¼ck zur Ãœbersicht</button>
                 </div>
 
                 {!costGroupCatalogReady && (
                   <p className="hint error">
-                    Katalog-Tabelle noch nicht verfügbar: {costGroupCatalogMessage}
+                    Katalog-Tabelle noch nicht verfÃ¼gbar: {costGroupCatalogMessage}
                   </p>
                 )}
 
                 {costGroupCatalogReady && !costGroups.length && (
-                  <p className="hint">Noch keine Kostengruppen angelegt. Füge unten eine hinzu.</p>
+                  <p className="hint">Noch keine Kostengruppen angelegt. FÃ¼ge unten eine hinzu.</p>
                 )}
 
                 {costGroupCatalogReady && (
@@ -3837,12 +3837,12 @@ function App() {
                       />
                       <div className="cost-group-row-actions" style={{ gridColumn: "span 2" }}>
                         <button className="btn secondary compact-action-btn" disabled={busy} onClick={() => saveCostGroup(group.id)}>
-                          <span className="btn-icon" aria-hidden="true">💾</span>
+                          <span className="btn-icon" aria-hidden="true">ðŸ’¾</span>
                           <span className="btn-label">Speichern</span>
                         </button>
                         <button className="btn secondary compact-action-btn" disabled={busy} onClick={() => deleteCostGroup(group.id)}>
-                          <span className="btn-icon" aria-hidden="true">🗑️</span>
-                          <span className="btn-label">Löschen</span>
+                          <span className="btn-icon" aria-hidden="true">ðŸ—‘ï¸</span>
+                          <span className="btn-label">LÃ¶schen</span>
                         </button>
                       </div>
                     </div>
@@ -3876,8 +3876,8 @@ function App() {
                     />
                     <div className="cost-group-new-actions" style={{ gridColumn: "span 2" }}>
                       <button className="btn compact-action-btn" disabled={busy} onClick={addCostGroup}>
-                        <span className="btn-icon" aria-hidden="true">➕</span>
-                        <span className="btn-label">Hinzufügen</span>
+                        <span className="btn-icon" aria-hidden="true">âž•</span>
+                        <span className="btn-label">HinzufÃ¼gen</span>
                       </button>
                     </div>
                   </div>
@@ -3888,17 +3888,17 @@ function App() {
             {costGroupModalView === "accounts" && (
               <>
                 <div className="cost-group-summary-actions">
-                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>Zurück zur Übersicht</button>
+                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>ZurÃ¼ck zur Ãœbersicht</button>
                 </div>
 
                 {!accountCatalogReady && (
                   <p className="hint error">
-                    Kostenträger-Tabelle noch nicht verfügbar: {accountCatalogMessage}
+                    KostentrÃ¤ger-Tabelle noch nicht verfÃ¼gbar: {accountCatalogMessage}
                   </p>
                 )}
 
                 {accountCatalogReady && !familyAccounts.length && (
-                  <p className="hint">Noch keine Kostenträger angelegt. Füge unten eines hinzu.</p>
+                  <p className="hint">Noch keine KostentrÃ¤ger angelegt. FÃ¼ge unten eines hinzu.</p>
                 )}
 
                 {accountCatalogReady && (
@@ -3952,7 +3952,7 @@ function App() {
                       <div className="account-row-actions">
                         <button className="btn secondary" disabled={busy} onClick={() => saveFamilyAccount(account.id)}>Speichern</button>
                         <button className="btn secondary" disabled={busy || account.account_type === "family"} onClick={() => deleteFamilyAccount(account)}>
-                          Löschen
+                          LÃ¶schen
                         </button>
                       </div>
                     </div>
@@ -3964,7 +3964,7 @@ function App() {
                     <input
                       value={newAccount.name}
                       onChange={(e) => setNewAccount((s) => ({ ...s, name: e.target.value }))}
-                      placeholder="Neuer Kostenträger"
+                      placeholder="Neuer KostentrÃ¤ger"
                     />
                     <div className="color-input-wrapper">
                       <input
@@ -3988,7 +3988,7 @@ function App() {
                       placeholder="Sortierung"
                     />
                     <div className="account-new-actions">
-                      <button className="btn" disabled={busy} onClick={addFamilyAccount}>Hinzufügen</button>
+                      <button className="btn" disabled={busy} onClick={addFamilyAccount}>HinzufÃ¼gen</button>
                     </div>
                   </div>
                 )}
@@ -4002,12 +4002,12 @@ function App() {
         <div className="modal-backdrop" onClick={() => setShowCostCenterModal(false)}>
           <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Kostenträger bearbeiten</h3>
-              <button className="btn secondary" onClick={() => setShowCostCenterModal(false)}>Schließen</button>
+              <h3>KostentrÃ¤ger bearbeiten</h3>
+              <button className="btn secondary" onClick={() => setShowCostCenterModal(false)}>SchlieÃŸen</button>
             </div>
 
             {costCenters.length === 0 && (
-              <p className="hint">Noch keine Kostenträger angelegt. Füge unten eines hinzu.</p>
+              <p className="hint">Noch keine KostentrÃ¤ger angelegt. FÃ¼ge unten eines hinzu.</p>
             )}
 
             {costCenters.length > 0 && (
@@ -4053,7 +4053,7 @@ function App() {
                       />
                       <div className="account-row-actions">
                         <button className="btn secondary" disabled={busy} onClick={() => saveCostCenter(center.id)}>Speichern</button>
-                        <button className="btn secondary" disabled={busy} onClick={() => deleteCostCenter(center.id)}>Löschen</button>
+                        <button className="btn secondary" disabled={busy} onClick={() => deleteCostCenter(center.id)}>LÃ¶schen</button>
                       </div>
                     </div>
                   );
@@ -4063,7 +4063,7 @@ function App() {
                   <input
                     value={newCostCenter.name}
                     onChange={(e) => setNewCostCenter((s) => ({ ...s, name: e.target.value }))}
-                    placeholder="Neuer Kostenträger"
+                    placeholder="Neuer KostentrÃ¤ger"
                   />
                   <div className="color-input-wrapper">
                     <input
@@ -4080,7 +4080,7 @@ function App() {
                     placeholder="Sortierung"
                   />
                   <div className="account-new-actions">
-                    <button className="btn" disabled={busy} onClick={addNewCostCenter}>Hinzufügen</button>
+                    <button className="btn" disabled={busy} onClick={addNewCostCenter}>HinzufÃ¼gen</button>
                   </div>
                 </div>
               </>
@@ -4093,12 +4093,12 @@ function App() {
         <div className="modal-backdrop" onClick={() => setShowSetupModal(false)}>
           <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>⚠️ Datenbank-Setup erforderlich</h3>
-              <button className="btn secondary" onClick={() => setShowSetupModal(false)}>Schließen</button>
+              <h3>âš ï¸ Datenbank-Setup erforderlich</h3>
+              <button className="btn secondary" onClick={() => setShowSetupModal(false)}>SchlieÃŸen</button>
             </div>
             <div style={{ padding: "20px 16px" }}>
               <p style={{ fontSize: "16px", lineHeight: "1.6", marginBottom: "16px" }}>
-                Um Kostenträger bei Positionen auswählen zu können, muss eine neue Spalte in der Datenbank erstellt werden.
+                Um KostentrÃ¤ger bei Positionen auswÃ¤hlen zu kÃ¶nnen, muss eine neue Spalte in der Datenbank erstellt werden.
               </p>
               <p style={{ background: "#f1fbf9", padding: "12px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "14px", fontFamily: "monospace", marginBottom: "16px" }}>
                 <strong>SQL:</strong><br/>
@@ -4108,10 +4108,10 @@ function App() {
               </p>
               <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                 <button className="btn" onClick={() => window.open('https://supabase.com/dashboard/project/pfmafymhudbstxwrwtlu/sql/new', '_blank')}>
-                  Supabase SQL-Editor öffnen
+                  Supabase SQL-Editor Ã¶ffnen
                 </button>
                 <button className="btn secondary" onClick={() => window.open('/setup-assigned-cost-center.html', '_blank')}>
-                  Schritt-für-Schritt Anleitung
+                  Schritt-fÃ¼r-Schritt Anleitung
                 </button>
               </div>
             </div>
@@ -4141,7 +4141,7 @@ function App() {
                 }}
                 title="Sektion ein-/ausblenden"
               >
-                {collapsedSections.has("receipts") ? "⊕" : "⊖"}
+                {collapsedSections.has("receipts") ? "âŠ•" : "âŠ–"}
               </button>
               <h2 style={{ margin: 0 }}>Belege</h2>
             </div>
@@ -4155,7 +4155,7 @@ function App() {
                     disabled={previewBusy || !currentReceipt.image_path}
                     onClick={() => openReceiptPreview(currentReceipt)}
                   >
-                    {previewBusy ? "Öffne..." : "Beleg ansehen"}
+                    {previewBusy ? "Ã–ffne..." : "Beleg ansehen"}
                   </button>
                   <button
                     className="btn secondary"
@@ -4163,7 +4163,7 @@ function App() {
                     disabled={busy}
                     onClick={() => deleteReceipt(currentReceipt)}
                   >
-                    Beleg löschen
+                    Beleg lÃ¶schen
                   </button>
                   <button
                     className="btn secondary"
@@ -4185,7 +4185,7 @@ function App() {
                   </button>
                 </div>
 
-                {/* Zahlkonto and Kostenträger below buttons */}
+                {/* Zahlkonto and KostentrÃ¤ger below buttons */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "12px", padding: "0" }}>
               <div className={`color-select-wrapper ${!currentReceipt.payment_account_id ? 'missing-required' : ''}`} style={{...(!currentReceipt.payment_account_id ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", height: "32px", display: "flex", alignItems: "center", padding: "0 8px" } : {...buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color), height: "32px", display: "flex", alignItems: "center", padding: "0 8px"}) }}>
                 <select
@@ -4213,10 +4213,10 @@ function App() {
                     }
                   }}
                   disabled={busy}
-                  title="Kostenträger"
+                  title="KostentrÃ¤ger"
                   style={{ height: "32px", width: "100%", fontSize: "0.9rem" }}
                 >
-                  <option value="">-- Kostenträger --</option>
+                  <option value="">-- KostentrÃ¤ger --</option>
                   {costCenterOptions.map((costCenter) => (
                     <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
                   ))}
@@ -4284,7 +4284,7 @@ function App() {
                     <optgroup label="Einzelne Monate">
                       <option value="0">Januar</option>
                       <option value="1">Februar</option>
-                      <option value="2">März</option>
+                      <option value="2">MÃ¤rz</option>
                       <option value="3">April</option>
                       <option value="4">Mai</option>
                       <option value="5">Juni</option>
@@ -4341,8 +4341,8 @@ function App() {
                 {costCenterColor && (
                   <span
                     className="receipt-corner receipt-corner-cost-center"
-                    title={costCenterName || "Kostenträger"}
-                    aria-label={costCenterName || "Kostenträger"}
+                    title={costCenterName || "KostentrÃ¤ger"}
+                    aria-label={costCenterName || "KostentrÃ¤ger"}
                   />
                 )}
                 <div className="receipt-card-content">
@@ -4350,7 +4350,7 @@ function App() {
                     {receipt.merchant || "Unbekannt"}
                   </strong>
                   <small>
-                    {formatReceiptDateTime(receipt)}{receipt.currency && receipt.currency !== "EUR" ? ` · ${receipt.currency}` : ""}
+                    {formatReceiptDateTime(receipt)}{receipt.currency && receipt.currency !== "EUR" ? ` Â· ${receipt.currency}` : ""}
                   </small>
                   {receipt.image_path?.toLowerCase().endsWith(".pdf") && <span className="receipt-pdf-badge">PDF</span>}
                 </div>
@@ -4365,7 +4365,7 @@ function App() {
           </div>
           {!receiptItemCurrencyColumnsReady && (
             <p className="hint warning">
-              Hinweis: Diese Datenbank läuft noch im alten EUR-Modus. Fremdwährung wird erst nach der Migration vollständig angezeigt.
+              Hinweis: Diese Datenbank lÃ¤uft noch im alten EUR-Modus. FremdwÃ¤hrung wird erst nach der Migration vollstÃ¤ndig angezeigt.
             </p>
           )}
             </>
@@ -4389,7 +4389,7 @@ function App() {
               }}
               title="Sektion ein-/ausblenden"
             >
-              {collapsedSections.has("receipt-items") ? "⊕" : "⊖"}
+              {collapsedSections.has("receipt-items") ? "âŠ•" : "âŠ–"}
             </button>
             <h2 style={{ margin: 0 }}>Positionen Beleg</h2>
           </div>
@@ -4427,9 +4427,9 @@ function App() {
                   className="btn secondary"
                   disabled={busy || !currentReceipt?.receipt_items?.length}
                   onClick={() => transferCostCenterToAll(currentReceipt)}
-                  title="Kostenträger der ersten Position auf alle übertragen"
+                  title="KostentrÃ¤ger der ersten Position auf alle Ã¼bertragen"
                 >
-                  Kostenträg. übernehm.
+                  KostentrÃ¤g. Ã¼bernehm.
                 </button>
               </div>
             </div>
@@ -4437,12 +4437,12 @@ function App() {
           {!collapsedSections.has("receipt-items") && (
             <>
 
-          {!currentReceipt && <p className="hint">Wähle oben einen Beleg aus.</p>}
+          {!currentReceipt && <p className="hint">WÃ¤hle oben einen Beleg aus.</p>}
           {currentReceipt && (
             <>
               {!receiptItemCurrencyColumnsReady && (
                 <p className="hint warning">
-                  Währungsänderungen sind erst nach der Migration verfügbar. Aktuell werden Positionen als EUR geführt.
+                  WÃ¤hrungsÃ¤nderungen sind erst nach der Migration verfÃ¼gbar. Aktuell werden Positionen als EUR gefÃ¼hrt.
                 </p>
               )}
 
@@ -4464,10 +4464,10 @@ function App() {
                           className="btn secondary mini-btn"
                           disabled={busy}
                           onClick={() => deleteReceiptItem(item)}
-                          title="Position löschen"
+                          title="Position lÃ¶schen"
                           style={{ padding: "4px 6px", minWidth: "32px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: "-2px" }}
                         >
-                          🗑️
+                          ðŸ—‘ï¸
                         </button>
                       </div>
                       
@@ -4499,7 +4499,7 @@ function App() {
                             <option key={currency} value={currency}>{CURRENCY_SYMBOL[currency] ?? currency}</option>
                           ))}
                         </select>
-                        {!receiptItemCurrencyColumnsReady && <span className="fallback-badge">€</span>}
+                        {!receiptItemCurrencyColumnsReady && <span className="fallback-badge">â‚¬</span>}
                       </div>
                     </div>
                     
@@ -4525,7 +4525,7 @@ function App() {
                       </div>
 
                       <div className="item-assignment">
-                        <span className="item-assignment-label">Kostenträger</span>
+                        <span className="item-assignment-label">KostentrÃ¤ger</span>
                         <div className={`color-select-wrapper ${!assignedCostCenterByItemId.get(item.id) ? 'missing-required' : ''}`} style={!assignedCostCenterByItemId.get(item.id) ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", height: "32px", minWidth: 0, display: "flex", alignItems: "center" } : {...buildColorInputStyle(
                           costCenterOptions.find(cc => cc.id === assignedCostCenterByItemId.get(item.id))?.color
                         ), height: "32px", minWidth: 0, display: "flex", alignItems: "center"}}>
@@ -4534,10 +4534,10 @@ function App() {
                             value={assignedCostCenterByItemId.get(item.id) || ""}
                             onChange={(e) => assignItemToCostCenter(item, e.target.value || null)}
                             disabled={!costCenterOptions.length}
-                            title="Kostenträger"
+                            title="KostentrÃ¤ger"
                             style={{ width: "100%", height: "100%", fontSize: "0.85rem" }}
                           >
-                            <option value="">- Kostenträger -</option>
+                            <option value="">- KostentrÃ¤ger -</option>
                             {costCenterOptions.map((costCenter) => (
                               <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
                             ))}
@@ -4551,12 +4551,12 @@ function App() {
 
               {!accountCatalogReady && (
                 <p className="hint error">
-                  Kostenträger-Tabelle noch nicht verfügbar: {accountCatalogMessage}
+                  KostentrÃ¤ger-Tabelle noch nicht verfÃ¼gbar: {accountCatalogMessage}
                 </p>
               )}
 
               <div className="manual-box">
-                <h3>Position manuell hinzufügen</h3>
+                <h3>Position manuell hinzufÃ¼gen</h3>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px", paddingBottom: "8px", borderBottom: "1px solid rgba(0,0,0,0.05)", minWidth: 0 }}>
                   {/* Left column */}
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1, minWidth: 0 }}>
@@ -4617,9 +4617,9 @@ function App() {
                         value={manualDraft.accountId || ""}
                         onChange={(e) => setManualDraft((s) => ({ ...s, accountId: e.target.value }))}
                         disabled={!accountCatalogReady || !costCenterOptions.length}
-                        title="Kostenträger"
+                        title="KostentrÃ¤ger"
                       >
-                        <option value="">- Kostenträger -</option>
+                        <option value="">- KostentrÃ¤ger -</option>
                         {costCenterOptions.map((costCenter) => (
                           <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
                         ))}
@@ -4627,7 +4627,7 @@ function App() {
                     </div>
                   </div>
                 </div>
-                <button className="btn secondary" onClick={addManualItem} style={{ marginBottom: "16px" }}>Hinzufügen</button>
+                <button className="btn secondary" onClick={addManualItem} style={{ marginBottom: "16px" }}>HinzufÃ¼gen</button>
               </div>
             </>
           )}
@@ -4669,7 +4669,7 @@ function App() {
                 }}
                 title="Sektion ein-/ausblenden"
               >
-                {collapsedSections.has("household-book") ? "⊕" : "⊖"}
+                {collapsedSections.has("household-book") ? "âŠ•" : "âŠ–"}
               </button>
               <h2 style={{ margin: 0 }}>Haushaltsbuch</h2>
             </div>
@@ -4678,7 +4678,7 @@ function App() {
             {!collapsedSections.has("household-book") && (
               <div className="household-header-actions">
                 <button className="btn secondary" onClick={(e) => { e.stopPropagation(); setShowCostCenterModal(true); }}>
-                  Kostenträger bearbeiten
+                  KostentrÃ¤ger bearbeiten
                 </button>
                 <button
                   className="btn secondary"
@@ -4713,11 +4713,11 @@ function App() {
           </div>
 
           <div className="cost-group-summary year-overview-summary">
-            <h3>Jahresübersicht {costGroupYearOverview.year}</h3>
+            <h3>JahresÃ¼bersicht {costGroupYearOverview.year}</h3>
             {!costGroupYearOverview.maxMonthTotal && <p className="hint">Noch keine Ausgaben im laufenden Jahr vorhanden.</p>}
             {!!costGroupYearOverview.maxMonthTotal && (
               <div className="year-overview-chart-wrap">
-                <div className="year-overview-chart" role="img" aria-label={`Jahresübersicht ${costGroupYearOverview.year}, gestapelte Monatsbalken nach Kostengruppen`}>
+                <div className="year-overview-chart" role="img" aria-label={`JahresÃ¼bersicht ${costGroupYearOverview.year}, gestapelte Monatsbalken nach Kostengruppen`}>
                   {costGroupYearOverview.months.map((month) => (
                     <div className="year-overview-month" key={month.label}>
                       <div className="year-overview-bar" title={`${month.label}: ${euro.format(month.total)}`}>
@@ -4728,8 +4728,8 @@ function App() {
                               key={`${month.label}-${segment.name}`}
                               className="year-overview-segment"
                               style={{ height: `${Math.max(height, 0)}%`, backgroundColor: segment.color }}
-                              title={`${month.label} · ${segment.name}: ${euro.format(segment.total)}`}
-                              aria-label={`${month.label} · ${segment.name}: ${euro.format(segment.total)}`}
+                              title={`${month.label} Â· ${segment.name}: ${euro.format(segment.total)}`}
+                              aria-label={`${month.label} Â· ${segment.name}: ${euro.format(segment.total)}`}
                             />
                           );
                         }) : <span className="year-overview-empty" />}
@@ -4755,7 +4755,7 @@ function App() {
           </div>
 
           <div className="cost-group-summary">
-            <h3>Kostenübersicht nach Kostengruppen</h3>
+            <h3>KostenÃ¼bersicht nach Kostengruppen</h3>
             {!costGroupTotals.length && <p className="hint">Noch keine Positionen mit Kosten vorhanden.</p>}
             {!!costGroupTotals.length && (
               <div className="cost-group-summary-list">
@@ -4773,7 +4773,7 @@ function App() {
           </div>
 
           <div className="cost-group-summary">
-            <h3>Kostenübersicht nach Kostenträgern</h3>
+            <h3>KostenÃ¼bersicht nach KostentrÃ¤gern</h3>
             {!costCenterTotals.length && <p className="hint">Noch keine Kosten vorhanden.</p>}
             {!!costCenterTotals.length && (
               <div className="cost-group-summary-list">
@@ -4791,7 +4791,7 @@ function App() {
           </div>
 
           <div className="cost-group-summary-actions">
-            <p className="hint">Tippe in diese Karte, um die Liste der Kostengruppen zu öffnen.</p>
+            <p className="hint">Tippe in diese Karte, um die Liste der Kostengruppen zu Ã¶ffnen.</p>
           </div>
           </>
           )}
@@ -4813,7 +4813,7 @@ function App() {
               }}
               title="Sektion ein-/ausblenden"
             >
-              {collapsedSections.has("settlement") ? "⊕" : "⊖"}
+              {collapsedSections.has("settlement") ? "âŠ•" : "âŠ–"}
             </button>
             <h2 style={{ margin: 0 }}>Verrechnung</h2>
           </div>
@@ -4865,7 +4865,7 @@ function App() {
               const diff = Math.abs(summedTotal - mainTotal);
               
               // Debug logs
-              console.log("🔍 DEBUG Ausgabensummen:");
+              console.log("ðŸ” DEBUG Ausgabensummen:");
               console.log("  Belege insgesamt:", receipts.length);
               console.log("  Totals per Konto:", totals);
               receipts.forEach((r, i) => {
@@ -4890,7 +4890,7 @@ function App() {
                   </div>
                   {diff > 0.01 && (
                     <p style={{ color: "red", fontSize: "0.9em", marginTop: "8px", padding: "8px", backgroundColor: "#ffe0e0", borderRadius: "4px" }}>
-                      ⚠️ Summe der Konten ({euro.format(summedTotal)}) ≠ Gesamtausgaben ({euro.format(mainTotal)})
+                      âš ï¸ Summe der Konten ({euro.format(summedTotal)}) â‰  Gesamtausgaben ({euro.format(mainTotal)})
                     </p>
                   )}
                 </div>
@@ -4925,7 +4925,7 @@ function App() {
                 zahlungen[accountId] = (zahlungen[accountId] || 0) + amount;
               }
               
-              // 2. KOSTENTRÄGER: Sum items by their assigned_cost_center_id
+              // 2. KOSTENTRÃ„GER: Sum items by their assigned_cost_center_id
               // Then map back to the family_account that has that cost_center_id
               const kostentraegerPerCostCenter = {}; // costCenterId -> amount
               for (const receipt of receipts) {
@@ -4957,20 +4957,20 @@ function App() {
                 kostentraegerPerAccount[defaultFamilyAccount.id] = kostentraegerPerCostCenter[defaultFamilyAccount.cost_center_id];
               }
               
-              // 3. AUSGLEICH = Zahlungen - Kostenträger
+              // 3. AUSGLEICH = Zahlungen - KostentrÃ¤ger
               const ausgleiche = {}; // accountId -> balance
               for (const account of accounts) {
                 ausgleiche[account.id] = (zahlungen[account.id] || 0) - (kostentraegerPerAccount[account.id] || 0);
               }
               
               // Debug
-              console.log("🔍 DEBUG Verrechnung (Settlement - mit assigned_cost_center_id):");
+              console.log("ðŸ” DEBUG Verrechnung (Settlement - mit assigned_cost_center_id):");
               console.log("  Zahlungen:", zahlungen);
-              console.log("  Kostenträger per CostCenter:", kostentraegerPerCostCenter);
-              console.log("  Kostenträger per Account:", kostentraegerPerAccount);
+              console.log("  KostentrÃ¤ger per CostCenter:", kostentraegerPerCostCenter);
+              console.log("  KostentrÃ¤ger per Account:", kostentraegerPerAccount);
               console.log("  Ausgleiche:", ausgleiche);
               
-              // Get debtors (negative = zahlt) and creditors (positive = erhält)
+              // Get debtors (negative = zahlt) and creditors (positive = erhÃ¤lt)
               // Both are PAYMENT ACCOUNTS (Zahlungskonten), not cost centers!
               const debtors = Object.entries(ausgleiche)
                 .filter(([id, bal]) => bal < -0.01)
@@ -4981,7 +4981,7 @@ function App() {
                 .map(([id, bal]) => ({ id, name: accounts.find(a => a.id === id)?.name || "?", color: accounts.find(a => a.id === id)?.color, account: accounts.find(a => a.id === id), amount: bal }));
               
               if (!debtors.length && !creditors.length) {
-                return <p className="hint">✓ Alle Konten sind ausgeglichen!</p>;
+                return <p className="hint">âœ“ Alle Konten sind ausgeglichen!</p>;
               }
               
               return (
@@ -5000,7 +5000,7 @@ function App() {
                       <div key={creditor.id} className="cost-group-summary-row" style={buildSummaryRowStyle(creditor.color)}>
                         <span className="cost-group-name">
                           <span className="cost-group-dot" style={{ backgroundColor: creditor.color }} />
-                          {creditor.name} erhält
+                          {creditor.name} erhÃ¤lt
                         </span>
                         <strong>{euro.format(creditor.amount)}</strong>
                       </div>
@@ -5020,14 +5020,14 @@ function App() {
                       return (
                         <div key={`settlement-${debtor.id}`} style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
                           <strong style={{ color: debtor.color }}>{debtor.name}</strong>
-                          <span>→</span>
+                          <span>â†’</span>
                           {validCreditors.map(creditor => (
                             <button
                               key={`settlement-${debtor.id}-${creditor.id}`}
                               className="btn secondary mini-btn"
                               disabled={busy}
                               onClick={() => createSettlementReceipt(debtor.account, creditor.account, creditor.amount)}
-                              title={`${debtor.name} zahlt ${creditor.amount}€ an ${creditor.name}`}
+                              title={`${debtor.name} zahlt ${creditor.amount}â‚¬ an ${creditor.name}`}
                             >
                               {creditor.name} {euro.format(creditor.amount)}
                             </button>
