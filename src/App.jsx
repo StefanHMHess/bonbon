@@ -1755,6 +1755,27 @@ function App() {
     await loadPendingUsers();
   }
 
+  async function rejectUser(userId) {
+    if (!supabase) return;
+    const { error: updateError } = await supabase
+      .from("user_access")
+      .update({
+        status: "blocked",
+        is_admin: false,
+        approved_at: null,
+      })
+      .eq("user_id", userId)
+      .eq("status", "pending");
+
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+
+    setSuccess("Benutzer wurde abgelehnt.");
+    await loadPendingUsers();
+  }
+
   async function bootstrapFirstAdmin() {
     if (!supabase || !session?.user) return;
 
@@ -3467,9 +3488,14 @@ function App() {
                     <strong>{entry.email || entry.user_id}</strong>
                     <small>{formatReceiptDateTime({ created_at: entry.created_at })}</small>
                   </div>
-                  <button className="btn secondary mini-btn" onClick={() => approveUser(entry.user_id)}>
-                    Freigeben
-                  </button>
+                  <div className="receipt-actions">
+                    <button className="btn secondary mini-btn" onClick={() => approveUser(entry.user_id)}>
+                      Freigeben
+                    </button>
+                    <button className="btn secondary mini-btn" onClick={() => rejectUser(entry.user_id)}>
+                      Ablehnen
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
