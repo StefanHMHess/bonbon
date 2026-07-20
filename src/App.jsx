@@ -11,7 +11,7 @@ const dateTimeDE = new Intl.DateTimeFormat("de-DE", {
   timeStyle: "short",
 });
 const dateDE = new Intl.DateTimeFormat("de-DE", { dateStyle: "short" });
-const APP_VERSION = "v0.4.1";
+const APP_VERSION = "v1.0.0";
 const CURRENCY_OPTIONS = ["EUR", "TRY", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF"];
 const CURRENCY_SYMBOL = { EUR: "€", TRY: "₺", USD: "$", GBP: "£", CHF: "Fr", SEK: "kr", NOK: "kr", DKK: "kr", PLN: "zł", CZK: "Kč", HUF: "Ft" };
 const AUTH_EMAIL_STORAGE_KEY = "bonbox_auth_email";
@@ -446,6 +446,7 @@ function App() {
   const [authEmail, setAuthEmail] = useState(() => {
     return safeStorageGet(AUTH_EMAIL_STORAGE_KEY, "");
   });
+  const [authPassword, setAuthPassword] = useState("");
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [accessRecord, setAccessRecord] = useState(null);
@@ -952,10 +953,9 @@ function App() {
 
   const hasSetup = isSupabaseConfigured && householdId;
   const isApproved = approvalStatus === "approved";
-  const isEmailVerified = Boolean(verifiedEmail);
-  const canUseApp = hasSetup && ((Boolean(session?.user) && isApproved) || isEmailVerified);
+  const canUseApp = hasSetup && Boolean(session?.user) && isApproved;
   const isAdmin = Boolean(accessRecord?.is_admin);
-  const displayEmail = session?.user?.email || verifiedEmail || "";
+  const displayEmail = session?.user?.email || authEmail || "";
 
   useEffect(() => {
     if (!authEmail) {
@@ -1221,15 +1221,6 @@ function App() {
   }, [familyAccounts]);
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !supabase || session?.user) return;
-    const rememberedEmail = safeStorageGet(VERIFIED_EMAIL_STORAGE_KEY, "");
-    if (!rememberedEmail) return;
-
-    setAuthEmail((prev) => prev || rememberedEmail);
-    void verifyApprovedEmail(rememberedEmail, true);
-  }, [session]);
-
-  useEffect(() => {
     if (!canUseApp) {
       setItemAllocations([]);
       return;
@@ -1378,6 +1369,116 @@ function App() {
 
     setError("");
     setSuccess("Anmelde-Link wurde per E-Mail gesendet.");
+  }
+
+  async function signInWithPassword() {
+    if (!supabase) return;
+
+    const email = String(authEmail || "").trim().toLowerCase();
+    const password = String(authPassword || "");
+
+    if (!email || !email.includes("@")) {
+      setError("Bitte eine gültige E-Mail-Adresse eingeben.");
+      return;
+    }
+
+    if (!password) {
+      setError("Bitte ein Passwort eingeben.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setSuccess("");
+
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    setBusy(false);
+
+    if (authError) {
+      setError(authError.message || "Anmeldung fehlgeschlagen.");
+      return;
+    }
+
+    setSuccess("Anmeldung erfolgreich.");
+    setAuthPassword("");
+  }
+
+  async function signUpWithPassword() {
+    if (!supabase) return;
+
+    const email = String(authEmail || "").trim().toLowerCase();
+    const password = String(authPassword || "");
+
+    if (!email || !email.includes("@")) {
+      setError("Bitte eine gültige E-Mail-Adresse eingeben.");
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("Bitte ein Passwort mit mindestens 8 Zeichen vergeben.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setSuccess("");
+
+    const { data, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    setBusy(false);
+
+    if (authError) {
+      setError(authError.message || "Zugang konnte nicht angelegt werden.");
+      return;
+    }
+
+    const needsEmailConfirmation = !data?.session;
+    setSuccess(
+      needsEmailConfirmation
+        ? "Zugang angelegt. Bitte die Bestätigungs-E-Mail öffnen und dich danach mit Passwort anmelden."
+        : "Zugang angelegt. Falls noch keine Freigabe besteht, muss ein Admin dich einmal freischalten."
+    );
+    setAuthPassword("");
+  }
+
+  async function sendPasswordReset() {
+    if (!supabase) return;
+
+    const email = String(authEmail || "").trim().toLowerCase();
+    if (!email || !email.includes("@")) {
+      setError("Bitte eine gültige E-Mail-Adresse eingeben.");
+      return;
+    }
+
+    const redirectUrl = getMagicLinkRedirectUrl();
+    if (!AUTH_REDIRECT_URL && isLocalhostUrl(redirectUrl)) {
+      setError("Passwort-Reset-Redirect ist lokal (localhost). Bitte VITE_AUTH_REDIRECT_URL auf die Netlify-URL setzen, dann erneut senden.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setSuccess("");
+
+    const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: redirectUrl,
+    });
+
+    setBusy(false);
+
+    if (authError) {
+      setError(authError.message || "Passwort-Reset konnte nicht gestartet werden.");
+      return;
+    }
+
+    setSuccess("E-Mail zum Setzen oder Zurücksetzen des Passworts wurde gesendet.");
   }
 
   async function verifyApprovedEmail(value, silent = false) {
@@ -3099,7 +3200,7 @@ function App() {
     );
   }
 
-  if (!session?.user && !isEmailVerified) {
+  if (!session?.user) {
     return (
       <div className="page">
         <header className="hero">
@@ -3112,20 +3213,36 @@ function App() {
         </header>
 
         <section className="panel setup-panel">
-          <h2>Login per E-Mail-Link</h2>
-          <p className="hint">Du erhältst einen sicheren Anmelde-Link per E-Mail.</p>
+          <h2>Login mit E-Mail und Passwort</h2>
+          <p className="hint">
+            Zugang gibt es nur mit echtem Login. Neue Benutzer koennen einen Zugang anlegen, bleiben aber bis zur Admin-Freigabe gesperrt.
+          </p>
           <input
             type="email"
             placeholder="name@beispiel.de"
             value={authEmail}
             onChange={(e) => setAuthEmail(e.target.value)}
           />
+          <input
+            type="password"
+            placeholder="Passwort"
+            value={authPassword}
+            onChange={(e) => setAuthPassword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !busy && hasSetup) {
+                void signInWithPassword();
+              }
+            }}
+          />
           <div className="receipt-actions">
-            <button className="btn" disabled={busy || !hasSetup || magicLinkBlocked} onClick={sendMagicLink}>
-              {busy ? "Sende..." : magicLinkBlocked ? `Warte ${magicLinkCooldownSeconds}s` : "Anmelde-Link senden"}
+            <button className="btn" disabled={busy || !hasSetup} onClick={signInWithPassword}>
+              {busy ? "Anmeldung laeuft..." : "Anmelden"}
             </button>
-            <button className="btn secondary" disabled={busy || !hasSetup} onClick={checkApprovedEmail}>
-              {busy ? "Prüfe..." : "Freigegebene E-Mail prüfen"}
+            <button className="btn secondary" disabled={busy || !hasSetup} onClick={sendPasswordReset}>
+              {busy ? "Sende..." : "Passwort setzen/zuruecksetzen"}
+            </button>
+            <button className="btn secondary" disabled={busy || !hasSetup} onClick={signUpWithPassword}>
+              {busy ? "Lege an..." : "Zugang anlegen"}
             </button>
           </div>
           {!hasSetup && (
@@ -3134,7 +3251,7 @@ function App() {
             </p>
           )}
           <p className="hint">
-            Wenn der Magic Link im anderen Browser aufgeht, prüfe die freigegebene E-Mail hier in diesem Fenster noch einmal.
+            Bestehende Magic-Link-Benutzer koennen einmalig ein Passwort setzen und sich danach normal mit E-Mail und Passwort anmelden.
           </p>
           {success && <p className="hint success">{success}</p>}
           {error && <p className="hint error">{error}</p>}
@@ -3235,7 +3352,7 @@ function App() {
       {isAdmin && (
         <section className="panel setup-panel" style={{ display: 'none' }}>
           <h2>Benutzerfreigaben</h2>
-          <p className="hint">Neue Benutzer erscheinen hier automatisch nach ihrem ersten Login per E-Mail-Link und können dann freigegeben werden.</p>
+          <p className="hint">Neue Benutzer erscheinen hier automatisch nach ihrer ersten Konto-Anlage oder Anmeldung und koennen dann freigegeben werden.</p>
           {!pendingUsers.length && <p className="hint">Keine offenen Freigaben.</p>}
           {!!pendingUsers.length && (
             <div className="receipt-list">
