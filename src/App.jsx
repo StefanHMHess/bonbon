@@ -16,6 +16,10 @@ const CURRENCY_OPTIONS = ["EUR", "TRY", "USD", "GBP", "CHF", "SEK", "NOK", "DKK"
 const CURRENCY_SYMBOL = { EUR: "€", TRY: "₺", USD: "$", GBP: "£", CHF: "Fr", SEK: "kr", NOK: "kr", DKK: "kr", PLN: "zł", CZK: "Kč", HUF: "Ft" };
 const AUTH_EMAIL_STORAGE_KEY = "bonbox_auth_email";
 const VERIFIED_EMAIL_STORAGE_KEY = "bonbox_verified_email";
+const EMERGENCY_ACCESS_ACTIVE_STORAGE_KEY = "bonbox_emergency_access_active";
+const EMERGENCY_ACCESS_USED_STORAGE_KEY = "bonbox_emergency_access_used";
+const EMERGENCY_ACCESS_EMAIL = "notzugang@bonbox.local";
+const EMERGENCY_ACCESS_VISIBLE_EMAIL = "he@wohnbau-hess.de";
 const MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY = "bonbox_magic_link_cooldown_until";
 const ONE_TIME_BYPASS_EMAIL = "nsteinweden@yahoo.com";
 const ONE_TIME_BYPASS_USED_STORAGE_KEY = "bonbox_one_time_bypass_used_nsteinweden";
@@ -385,6 +389,21 @@ function getRateLimitBackoffMs(errorMessage) {
   }
 
   return MAGIC_LINK_RATE_LIMIT_BACKOFF_MS;
+}
+
+function getReadableAuthErrorMessage(errorMessage, fallbackMessage) {
+  const rawMessage = String(errorMessage || "");
+  const normalized = rawMessage.toLowerCase();
+
+  if (
+    normalized.includes("email rate limit") ||
+    normalized.includes("over_email_send_rate_limit") ||
+    normalized.includes("limit exceeded")
+  ) {
+    return "Supabase hat das E-Mail-Limit erreicht. Bitte spaeter erneut versuchen oder in Supabase/SMTP einen eigenen Mailversand aktivieren.";
+  }
+
+  return rawMessage || fallbackMessage;
 }
 
 function safeStorageGet(key, fallback = "") {
@@ -953,9 +972,12 @@ function App() {
 
   const hasSetup = isSupabaseConfigured && householdId;
   const isApproved = approvalStatus === "approved";
-  const canUseApp = hasSetup && Boolean(session?.user) && isApproved;
+  const isEmergencyAccessActive = approvalStatus === "approved_local";
+  const hasUsedEmergencyAccess = safeStorageGet(EMERGENCY_ACCESS_USED_STORAGE_KEY, "") === "1";
+  const canSeeEmergencyAccessButton = String(authEmail || "").trim().toLowerCase() === EMERGENCY_ACCESS_VISIBLE_EMAIL;
+  const canUseApp = hasSetup && ((Boolean(session?.user) && isApproved) || isEmergencyAccessActive);
   const isAdmin = Boolean(accessRecord?.is_admin);
-  const displayEmail = session?.user?.email || authEmail || "";
+  const displayEmail = session?.user?.email || verifiedEmail || authEmail || "";
 
   useEffect(() => {
     if (!authEmail) {
@@ -1143,9 +1165,20 @@ function App() {
       if (nextSession?.user) {
         void loadUserAccess(nextSession.user);
       } else {
-        setApprovalStatus("signed_out");
-        setAccessRecord(null);
-        setPendingUsers([]);
+        const hasEmergencyAccess = safeStorageGet(EMERGENCY_ACCESS_ACTIVE_STORAGE_KEY, "") === "1";
+        if (hasEmergencyAccess) {
+          setVerifiedEmail(EMERGENCY_ACCESS_EMAIL);
+          setApprovalStatus("approved_local");
+          setAccessRecord({
+            email: EMERGENCY_ACCESS_EMAIL,
+            status: "approved",
+            is_admin: false,
+          });
+        } else {
+          setApprovalStatus("signed_out");
+          setAccessRecord(null);
+          setPendingUsers([]);
+        }
       }
     });
 
@@ -1157,9 +1190,20 @@ function App() {
       if (nextSession?.user) {
         void loadUserAccess(nextSession.user);
       } else {
-        setApprovalStatus("signed_out");
-        setAccessRecord(null);
-        setPendingUsers([]);
+        const hasEmergencyAccess = safeStorageGet(EMERGENCY_ACCESS_ACTIVE_STORAGE_KEY, "") === "1";
+        if (hasEmergencyAccess) {
+          setVerifiedEmail(EMERGENCY_ACCESS_EMAIL);
+          setApprovalStatus("approved_local");
+          setAccessRecord({
+            email: EMERGENCY_ACCESS_EMAIL,
+            status: "approved",
+            is_admin: false,
+          });
+        } else {
+          setApprovalStatus("signed_out");
+          setAccessRecord(null);
+          setPendingUsers([]);
+        }
       }
     });
 
@@ -1412,6 +1456,7 @@ function App() {
 
     const email = String(authEmail || "").trim().toLowerCase();
     const password = String(authPassword || "");
+    const redirectUrl = getMagicLinkRedirectUrl();
 
     if (!email || !email.includes("@")) {
       setError("Bitte eine gültige E-Mail-Adresse eingeben.");
@@ -1423,6 +1468,11 @@ function App() {
       return;
     }
 
+    if (!AUTH_REDIRECT_URL && isLocalhostUrl(redirectUrl)) {
+      setError("Bestaetigungs-Redirect ist lokal (localhost). Bitte VITE_AUTH_REDIRECT_URL auf die Netlify-URL setzen, dann erneut senden.");
+      return;
+    }
+
     setBusy(true);
     setError("");
     setSuccess("");
@@ -1430,12 +1480,15 @@ function App() {
     const { data, error: authError } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: redirectUrl,
+      },
     });
 
     setBusy(false);
 
     if (authError) {
-      setError(authError.message || "Zugang konnte nicht angelegt werden.");
+      setError(getReadableAuthErrorMessage(authError.message, "Zugang konnte nicht angelegt werden."));
       return;
     }
 
@@ -1474,11 +1527,31 @@ function App() {
     setBusy(false);
 
     if (authError) {
-      setError(authError.message || "Passwort-Reset konnte nicht gestartet werden.");
+      setError(getReadableAuthErrorMessage(authError.message, "Passwort-Reset konnte nicht gestartet werden."));
       return;
     }
 
     setSuccess("E-Mail zum Setzen oder Zurücksetzen des Passworts wurde gesendet.");
+  }
+
+  function activateEmergencyAccess() {
+    if (hasUsedEmergencyAccess) {
+      setError("Der einmalige Notzugang wurde in diesem Browser bereits verwendet.");
+      return;
+    }
+
+    setError("");
+    setSuccess("Einmaliger Notzugang aktiviert. Beim Abmelden wird dieser Zugang wieder geschlossen.");
+    setVerifiedEmail(EMERGENCY_ACCESS_EMAIL);
+    setApprovalStatus("approved_local");
+    setAccessRecord({
+      email: EMERGENCY_ACCESS_EMAIL,
+      status: "approved",
+      is_admin: false,
+    });
+    safeStorageSet(VERIFIED_EMAIL_STORAGE_KEY, EMERGENCY_ACCESS_EMAIL);
+    safeStorageSet(EMERGENCY_ACCESS_ACTIVE_STORAGE_KEY, "1");
+    safeStorageSet(EMERGENCY_ACCESS_USED_STORAGE_KEY, "1");
   }
 
   async function verifyApprovedEmail(value, silent = false) {
@@ -1572,6 +1645,7 @@ function App() {
     setPendingUsers([]);
     setSuccess("");
     safeStorageRemove(VERIFIED_EMAIL_STORAGE_KEY);
+    safeStorageRemove(EMERGENCY_ACCESS_ACTIVE_STORAGE_KEY);
   }
 
   async function loadUserAccess(user) {
@@ -3200,7 +3274,7 @@ function App() {
     );
   }
 
-  if (!session?.user) {
+  if (!session?.user && !isEmergencyAccessActive) {
     return (
       <div className="page">
         <header className="hero">
@@ -3244,6 +3318,11 @@ function App() {
             <button className="btn secondary" disabled={busy || !hasSetup} onClick={signUpWithPassword}>
               {busy ? "Lege an..." : "Zugang anlegen"}
             </button>
+            {canSeeEmergencyAccessButton && (
+              <button className="btn secondary" disabled={busy || !hasSetup || hasUsedEmergencyAccess} onClick={activateEmergencyAccess}>
+                {hasUsedEmergencyAccess ? "Notzugang verbraucht" : "Einmal ohne E-Mail rein"}
+              </button>
+            )}
           </div>
           {!hasSetup && (
             <p className="hint error">
@@ -3253,6 +3332,11 @@ function App() {
           <p className="hint">
             Bestehende Magic-Link-Benutzer koennen einmalig ein Passwort setzen und sich danach normal mit E-Mail und Passwort anmelden.
           </p>
+          {canSeeEmergencyAccessButton && (
+            <p className="hint">
+              Der Notzugang ist absichtlich nur einmal pro Browser verfuegbar und endet spaetestens beim Abmelden.
+            </p>
+          )}
           {success && <p className="hint success">{success}</p>}
           {error && <p className="hint error">{error}</p>}
         </section>
@@ -3350,7 +3434,7 @@ function App() {
       )}
 
       {isAdmin && (
-        <section className="panel setup-panel" style={{  }}>
+        <section className="panel setup-panel">
           <h2>Benutzerfreigaben</h2>
           <p className="hint">Neue Benutzer erscheinen hier automatisch nach ihrer ersten Konto-Anlage oder Anmeldung und koennen dann freigegeben werden.</p>
           {!pendingUsers.length && <p className="hint">Keine offenen Freigaben.</p>}
