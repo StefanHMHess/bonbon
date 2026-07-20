@@ -3520,12 +3520,12 @@ function App() {
                   }}
                   title="Sektion ein-/ausblenden"
                 >
-                  {collapsedSections.has("cost-center-form") ? "âŠ•" : "âŠ–"}
+                  {collapsedSections.has("cost-center-form") ? "▸" : "▾"}
                 </button>
-                <h2 style={{ margin: 0 }}>1. Kosten fÃ¼r (KostentrÃ¤ger)</h2>
+                <h2 style={{ margin: 0 }}>1. Kosten für (Kostenträger)</h2>
               </div>
               <button className="btn secondary" onClick={() => setShowCostCenterModal(true)}>
-                KostentrÃ¤ger bearbeiten
+                  Kostenträger bearbeiten
               </button>
             </div>
             {!collapsedSections.has("cost-center-form") && (
@@ -3535,7 +3535,7 @@ function App() {
                   value={newReceiptCostCenterId || ""}
                   onChange={(e) => setNewReceiptCostCenterId(e.target.value || null)}
                 >
-                  <option value="">-- WÃ¤hle KostentrÃ¤ger --</option>
+                  <option value="">-- Wähle Kostenträger --</option>
                   {costCenterOptions.map((costCenter) => (
                     <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
                   ))}
@@ -3563,7 +3563,7 @@ function App() {
                   }}
                   title="Sektion ein-/ausblenden"
                 >
-                  {collapsedSections.has("payment-account-form") ? "âŠ•" : "âŠ–"}
+                  {collapsedSections.has("payment-account-form") ? "▸" : "▾"}
                 </button>
                 <h2 style={{ margin: 0 }}>2. Zahlung von (Zahlungskonto)</h2>
               </div>
@@ -3584,7 +3584,7 @@ function App() {
                 onChange={(e) => setNewPaymentAccountId(e.target.value || null)}
                 disabled={busy}
               >
-                <option value="">-- WÃ¤hle Zahlungskonto --</option>
+                  <option value="">-- Wähle Zahlungskonto --</option>
                 {paymentAccountOptions.map((account) => (
                   <option key={account.id} value={account.id}>{account.name}</option>
                 ))}
@@ -3610,7 +3610,7 @@ function App() {
                 }}
                 title="Sektion ein-/ausblenden"
               >
-                {collapsedSections.has("receipt-capture-form") ? "âŠ•" : "âŠ–"}
+                {collapsedSections.has("receipt-capture-form") ? "▸" : "▾"}
               </button>
               <h2 style={{ margin: 0 }}>3. Beleg erfassen</h2>
             </div>
@@ -3625,10 +3625,10 @@ function App() {
                 onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
               />
               <label htmlFor="receipt-file" className="btn secondary file-trigger">
-                Beleg auswÃ¤hlen/Foto aufnehmen
+                Beleg auswählen/Foto aufnehmen
               </label>
               <p className="hint file-name">
-                {selectedFile ? `AusgewÃ¤hlt: ${selectedFile.name}` : "Noch keine Datei ausgewÃ¤hlt"}
+                {selectedFile ? `Ausgewählt: ${selectedFile.name}` : "Noch keine Datei ausgewählt"}
               </p>
             </div>
             <button className="btn" disabled={!selectedFile || busy || !hasSetup} onClick={uploadAndExtract}>
@@ -3645,13 +3645,13 @@ function App() {
           <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>
-                {costGroupModalView === "summary" && "KostenÃ¼bersicht"}
-                {costGroupModalView === "groupDetails" && "Detaillierte Ãœbersicht nach Kostengruppen"}
-                {costGroupModalView === "accountDetails" && "Detaillierte Ãœbersicht nach KostentrÃ¤gern"}
+                {costGroupModalView === "summary" && "Kostenübersicht"}
+                {costGroupModalView === "groupDetails" && "Detaillierte Übersicht nach Kostengruppen"}
+                {costGroupModalView === "accountDetails" && "Detaillierte Übersicht nach Kostenträgern"}
                 {costGroupModalView === "edit" && "Kostengruppen bearbeiten"}
                 {costGroupModalView === "accounts" && "Zahlungskonten bearbeiten"}
               </h3>
-              <button className="btn secondary" onClick={() => setShowCostGroupModal(false)}>SchlieÃŸen</button>
+              <button className="btn secondary" onClick={() => setShowCostGroupModal(false)}>Schließen</button>
             </div>
 
             {costGroupModalView === "summary" && (
@@ -3662,7 +3662,7 @@ function App() {
                     setCostGroupModalView("groupDetails");
                   }
                 }}>
-                  <h3>KostenÃ¼bersicht nach Kostengruppen</h3>
+                  <h3>Kostenübersicht nach Kostengruppen</h3>
                   {!costGroupTotals.length && <p className="hint">Noch keine Positionen mit Kosten vorhanden.</p>}
                   {!!costGroupTotals.length && (
                     <div className="cost-group-summary-list">
@@ -3677,7 +3677,7 @@ function App() {
                       ))}
                     </div>
                   )}
-                  <p className="hint">Tippen fÃ¼r Detailansicht.</p>
+                  <p className="hint">Tippen für Detailansicht.</p>
                 </div>
 
                 <div className="cost-group-summary clickable-summary" role="button" tabIndex={0} onClick={() => setCostGroupModalView("accountDetails")} onKeyDown={(e) => {
@@ -3686,7 +3686,7 @@ function App() {
                     setCostGroupModalView("accountDetails");
                   }
                 }}>
-                  <h3>KostenÃ¼bersicht nach KostentrÃ¤gern</h3>
+                  <h3>Kostenübersicht nach Kostenträgern</h3>
                   {!costCenterTotals.length && <p className="hint">Noch keine Kosten vorhanden.</p>}
                   {!!costCenterTotals.length && (
                     <div className="cost-group-summary-list">
@@ -3701,7 +3701,7 @@ function App() {
                       ))}
                     </div>
                   )}
-                  <p className="hint">Tippen fÃ¼r Detailansicht.</p>
+                  <p className="hint">Tippen für Detailansicht.</p>
                 </div>
 
                 <div className="cost-group-summary-actions">
@@ -3713,19 +3713,19 @@ function App() {
             {costGroupModalView === "groupDetails" && (
               <>
                 <div className="cost-group-summary-actions">
-                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>ZurÃ¼ck zur Ãœbersicht</button>
+                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>Zurück zur Übersicht</button>
                 </div>
                 <div className="detail-stats-grid">
                   <div className="detail-stat-card"><span>Gesamt</span><strong>{euro.format(costGroupDetails.overall.total)}</strong></div>
                   <div className="detail-stat-card"><span>Laufendes Jahr</span><strong>{euro.format(costGroupDetails.overall.yearTotal)}</strong></div>
                   <div className="detail-stat-card"><span>Laufender Monat</span><strong>{euro.format(costGroupDetails.overall.monthTotal)}</strong></div>
-                  <div className="detail-stat-card"><span>Ã˜ pro Monat</span><strong>{euro.format(costGroupDetails.overall.averagePerMonth)}</strong></div>
+                  <div className="detail-stat-card"><span>Ø pro Monat</span><strong>{euro.format(costGroupDetails.overall.averagePerMonth)}</strong></div>
                 </div>
                 {!costGroupDetails.rows.length && <p className="hint">Noch keine Positionen mit Kosten vorhanden.</p>}
                 {!!costGroupDetails.rows.length && (
                   <div className="detail-table">
                     <div className="detail-table-head">
-                      <span>Name</span><span>Gesamt</span><span>Laufendes Jahr</span><span>Laufender Monat</span><span>Ã˜ pro Monat</span>
+                      <span>Name</span><span>Gesamt</span><span>Laufendes Jahr</span><span>Laufender Monat</span><span>Ø pro Monat</span>
                     </div>
                     {costGroupDetails.rows.map((row) => (
                       <div className="detail-table-row" key={row.name}>
@@ -3733,7 +3733,7 @@ function App() {
                         <strong className="detail-metric" data-label="Gesamt">{euro.format(row.total)}</strong>
                         <strong className="detail-metric" data-label="Laufendes Jahr">{euro.format(row.yearTotal)}</strong>
                         <strong className="detail-metric" data-label="Laufender Monat">{euro.format(row.monthTotal)}</strong>
-                        <strong className="detail-metric" data-label="Ã˜ pro Monat">{euro.format(row.averagePerMonth)}</strong>
+                        <strong className="detail-metric" data-label="Ø pro Monat">{euro.format(row.averagePerMonth)}</strong>
                       </div>
                     ))}
                   </div>
@@ -3744,19 +3744,19 @@ function App() {
             {costGroupModalView === "accountDetails" && (
               <>
                 <div className="cost-group-summary-actions">
-                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>ZurÃ¼ck zur Ãœbersicht</button>
+                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>Zurück zur Übersicht</button>
                 </div>
                 <div className="detail-stats-grid">
                   <div className="detail-stat-card"><span>Gesamt</span><strong>{euro.format(accountDetails.overall.total)}</strong></div>
                   <div className="detail-stat-card"><span>Laufendes Jahr</span><strong>{euro.format(accountDetails.overall.yearTotal)}</strong></div>
                   <div className="detail-stat-card"><span>Laufender Monat</span><strong>{euro.format(accountDetails.overall.monthTotal)}</strong></div>
-                  <div className="detail-stat-card"><span>Ã˜ pro Monat</span><strong>{euro.format(accountDetails.overall.averagePerMonth)}</strong></div>
+                  <div className="detail-stat-card"><span>Ø pro Monat</span><strong>{euro.format(accountDetails.overall.averagePerMonth)}</strong></div>
                 </div>
                 {!accountDetails.rows.length && <p className="hint">Noch keine Kosten vorhanden.</p>}
                 {!!accountDetails.rows.length && (
                   <div className="detail-table">
                     <div className="detail-table-head">
-                      <span>Name</span><span>Gesamt</span><span>Laufendes Jahr</span><span>Laufender Monat</span><span>Ã˜ pro Monat</span>
+                      <span>Name</span><span>Gesamt</span><span>Laufendes Jahr</span><span>Laufender Monat</span><span>Ø pro Monat</span>
                     </div>
                     {accountDetails.rows.map((row) => (
                       <div className="detail-table-row" key={row.id}>
@@ -3764,7 +3764,7 @@ function App() {
                         <strong className="detail-metric" data-label="Gesamt">{euro.format(row.total)}</strong>
                         <strong className="detail-metric" data-label="Laufendes Jahr">{euro.format(row.yearTotal)}</strong>
                         <strong className="detail-metric" data-label="Laufender Monat">{euro.format(row.monthTotal)}</strong>
-                        <strong className="detail-metric" data-label="Ã˜ pro Monat">{euro.format(row.averagePerMonth)}</strong>
+                        <strong className="detail-metric" data-label="Ø pro Monat">{euro.format(row.averagePerMonth)}</strong>
                       </div>
                     ))}
                   </div>
@@ -3775,7 +3775,7 @@ function App() {
             {costGroupModalView === "edit" && (
               <>
                 <div className="cost-group-summary-actions">
-                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>ZurÃ¼ck zur Ãœbersicht</button>
+                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>Zurück zur Übersicht</button>
                 </div>
 
                 {!costGroupCatalogReady && (
@@ -3834,12 +3834,12 @@ function App() {
                       />
                       <div className="cost-group-row-actions" style={{ gridColumn: "span 2" }}>
                         <button className="btn secondary compact-action-btn" disabled={busy} onClick={() => saveCostGroup(group.id)}>
-                          <span className="btn-icon" aria-hidden="true">ðŸ’¾</span>
+                          <span className="btn-icon" aria-hidden="true">💾</span>
                           <span className="btn-label">Speichern</span>
                         </button>
                         <button className="btn secondary compact-action-btn" disabled={busy} onClick={() => deleteCostGroup(group.id)}>
-                          <span className="btn-icon" aria-hidden="true">ðŸ—‘ï¸</span>
-                          <span className="btn-label">LÃ¶schen</span>
+                          <span className="btn-icon" aria-hidden="true">🗑️</span>
+                          <span className="btn-label">Löschen</span>
                         </button>
                       </div>
                     </div>
@@ -3873,8 +3873,8 @@ function App() {
                     />
                     <div className="cost-group-new-actions" style={{ gridColumn: "span 2" }}>
                       <button className="btn compact-action-btn" disabled={busy} onClick={addCostGroup}>
-                        <span className="btn-icon" aria-hidden="true">âž•</span>
-                        <span className="btn-label">HinzufÃ¼gen</span>
+                        <span className="btn-icon" aria-hidden="true">➕</span>
+                        <span className="btn-label">Hinzufügen</span>
                       </button>
                     </div>
                   </div>
@@ -3885,17 +3885,17 @@ function App() {
             {costGroupModalView === "accounts" && (
               <>
                 <div className="cost-group-summary-actions">
-                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>ZurÃ¼ck zur Ãœbersicht</button>
+                  <button className="btn secondary" onClick={() => setCostGroupModalView("summary")}>Zurück zur Übersicht</button>
                 </div>
 
                 {!accountCatalogReady && (
                   <p className="hint error">
-                    KostentrÃ¤ger-Tabelle noch nicht verfÃ¼gbar: {accountCatalogMessage}
+                    Kostenträger-Tabelle noch nicht verfügbar: {accountCatalogMessage}
                   </p>
                 )}
 
                 {accountCatalogReady && !familyAccounts.length && (
-                  <p className="hint">Noch keine KostentrÃ¤ger angelegt. FÃ¼ge unten eines hinzu.</p>
+                  <p className="hint">Noch keine Kostenträger angelegt. Füge unten eines hinzu.</p>
                 )}
 
                 {accountCatalogReady && (
@@ -3949,7 +3949,7 @@ function App() {
                       <div className="account-row-actions">
                         <button className="btn secondary" disabled={busy} onClick={() => saveFamilyAccount(account.id)}>Speichern</button>
                         <button className="btn secondary" disabled={busy || account.account_type === "family"} onClick={() => deleteFamilyAccount(account)}>
-                          LÃ¶schen
+                          Löschen
                         </button>
                       </div>
                     </div>
@@ -3961,7 +3961,7 @@ function App() {
                     <input
                       value={newAccount.name}
                       onChange={(e) => setNewAccount((s) => ({ ...s, name: e.target.value }))}
-                      placeholder="Neuer KostentrÃ¤ger"
+                      placeholder="Neuer Kostenträger"
                     />
                     <div className="color-input-wrapper">
                       <input
@@ -3985,7 +3985,7 @@ function App() {
                       placeholder="Sortierung"
                     />
                     <div className="account-new-actions">
-                      <button className="btn" disabled={busy} onClick={addFamilyAccount}>HinzufÃ¼gen</button>
+                      <button className="btn" disabled={busy} onClick={addFamilyAccount}>Hinzufügen</button>
                     </div>
                   </div>
                 )}
@@ -3999,12 +3999,12 @@ function App() {
         <div className="modal-backdrop" onClick={() => setShowCostCenterModal(false)}>
           <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>KostentrÃ¤ger bearbeiten</h3>
-              <button className="btn secondary" onClick={() => setShowCostCenterModal(false)}>SchlieÃŸen</button>
+              <h3>Kostenträger bearbeiten</h3>
+              <button className="btn secondary" onClick={() => setShowCostCenterModal(false)}>Schließen</button>
             </div>
 
             {costCenters.length === 0 && (
-              <p className="hint">Noch keine KostentrÃ¤ger angelegt. FÃ¼ge unten eines hinzu.</p>
+              <p className="hint">Noch keine Kostenträger angelegt. Füge unten eines hinzu.</p>
             )}
 
             {costCenters.length > 0 && (
@@ -4050,7 +4050,7 @@ function App() {
                       />
                       <div className="account-row-actions">
                         <button className="btn secondary" disabled={busy} onClick={() => saveCostCenter(center.id)}>Speichern</button>
-                        <button className="btn secondary" disabled={busy} onClick={() => deleteCostCenter(center.id)}>LÃ¶schen</button>
+                        <button className="btn secondary" disabled={busy} onClick={() => deleteCostCenter(center.id)}>Löschen</button>
                       </div>
                     </div>
                   );
@@ -4060,7 +4060,7 @@ function App() {
                   <input
                     value={newCostCenter.name}
                     onChange={(e) => setNewCostCenter((s) => ({ ...s, name: e.target.value }))}
-                    placeholder="Neuer KostentrÃ¤ger"
+                    placeholder="Neuer Kostenträger"
                   />
                   <div className="color-input-wrapper">
                     <input
@@ -4077,7 +4077,7 @@ function App() {
                     placeholder="Sortierung"
                   />
                   <div className="account-new-actions">
-                    <button className="btn" disabled={busy} onClick={addNewCostCenter}>HinzufÃ¼gen</button>
+                    <button className="btn" disabled={busy} onClick={addNewCostCenter}>Hinzufügen</button>
                   </div>
                 </div>
               </>
@@ -4090,12 +4090,12 @@ function App() {
         <div className="modal-backdrop" onClick={() => setShowSetupModal(false)}>
           <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>âš ï¸ Datenbank-Setup erforderlich</h3>
-              <button className="btn secondary" onClick={() => setShowSetupModal(false)}>SchlieÃŸen</button>
+              <h3>⚠️ Datenbank-Setup erforderlich</h3>
+              <button className="btn secondary" onClick={() => setShowSetupModal(false)}>Schließen</button>
             </div>
             <div style={{ padding: "20px 16px" }}>
               <p style={{ fontSize: "16px", lineHeight: "1.6", marginBottom: "16px" }}>
-                Um KostentrÃ¤ger bei Positionen auswÃ¤hlen zu kÃ¶nnen, muss eine neue Spalte in der Datenbank erstellt werden.
+                Um Kostenträger bei Positionen auswählen zu können, muss eine neue Spalte in der Datenbank erstellt werden.
               </p>
               <p style={{ background: "#f1fbf9", padding: "12px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "14px", fontFamily: "monospace", marginBottom: "16px" }}>
                 <strong>SQL:</strong><br/>
@@ -4105,10 +4105,10 @@ function App() {
               </p>
               <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                 <button className="btn" onClick={() => window.open('https://supabase.com/dashboard/project/pfmafymhudbstxwrwtlu/sql/new', '_blank')}>
-                  Supabase SQL-Editor Ã¶ffnen
+                  Supabase SQL-Editor öffnen
                 </button>
                 <button className="btn secondary" onClick={() => window.open('/setup-assigned-cost-center.html', '_blank')}>
-                  Schritt-fÃ¼r-Schritt Anleitung
+                  Schritt-für-Schritt Anleitung
                 </button>
               </div>
             </div>
@@ -4138,7 +4138,7 @@ function App() {
                 }}
                 title="Sektion ein-/ausblenden"
               >
-                {collapsedSections.has("receipts") ? "âŠ•" : "âŠ–"}
+                {collapsedSections.has("receipts") ? "▸" : "▾"}
               </button>
               <h2 style={{ margin: 0 }}>Belege</h2>
             </div>
@@ -4152,7 +4152,7 @@ function App() {
                     disabled={previewBusy || !currentReceipt.image_path}
                     onClick={() => openReceiptPreview(currentReceipt)}
                   >
-                    {previewBusy ? "Ã–ffne..." : "Beleg ansehen"}
+                    {previewBusy ? "Öffne..." : "Beleg ansehen"}
                   </button>
                   <button
                     className="btn secondary"
@@ -4160,7 +4160,7 @@ function App() {
                     disabled={busy}
                     onClick={() => deleteReceipt(currentReceipt)}
                   >
-                    Beleg lÃ¶schen
+                    Beleg löschen
                   </button>
                   <button
                     className="btn secondary"
@@ -4182,7 +4182,7 @@ function App() {
                   </button>
                 </div>
 
-                {/* Zahlkonto and KostentrÃ¤ger below buttons */}
+                {/* Zahlkonto and Kostenträger below buttons */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "12px", padding: "0" }}>
               <div className={`color-select-wrapper ${!currentReceipt.payment_account_id ? 'missing-required' : ''}`} style={{...(!currentReceipt.payment_account_id ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", height: "32px", display: "flex", alignItems: "center", padding: "0 8px" } : {...buildColorInputStyle((paymentAccountOptions.find((a) => a.id === currentReceipt.payment_account_id) || {}).color), height: "32px", display: "flex", alignItems: "center", padding: "0 8px"}) }}>
                 <select
@@ -4210,10 +4210,10 @@ function App() {
                     }
                   }}
                   disabled={busy}
-                  title="KostentrÃ¤ger"
+                  title="Kostenträger"
                   style={{ height: "32px", width: "100%", fontSize: "0.9rem" }}
                 >
-                  <option value="">-- KostentrÃ¤ger --</option>
+                  <option value="">-- Kostenträger --</option>
                   {costCenterOptions.map((costCenter) => (
                     <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
                   ))}
@@ -4281,7 +4281,7 @@ function App() {
                     <optgroup label="Einzelne Monate">
                       <option value="0">Januar</option>
                       <option value="1">Februar</option>
-                      <option value="2">MÃ¤rz</option>
+                      <option value="2">März</option>
                       <option value="3">April</option>
                       <option value="4">Mai</option>
                       <option value="5">Juni</option>
@@ -4338,8 +4338,8 @@ function App() {
                 {costCenterColor && (
                   <span
                     className="receipt-corner receipt-corner-cost-center"
-                    title={costCenterName || "KostentrÃ¤ger"}
-                    aria-label={costCenterName || "KostentrÃ¤ger"}
+                    title={costCenterName || "Kostenträger"}
+                    aria-label={costCenterName || "Kostenträger"}
                   />
                 )}
                 <div className="receipt-card-content">
@@ -4347,7 +4347,7 @@ function App() {
                     {receipt.merchant || "Unbekannt"}
                   </strong>
                   <small>
-                    {formatReceiptDateTime(receipt)}{receipt.currency && receipt.currency !== "EUR" ? ` Â· ${receipt.currency}` : ""}
+                    {formatReceiptDateTime(receipt)}{receipt.currency && receipt.currency !== "EUR" ? ` · ${receipt.currency}` : ""}
                   </small>
                   {receipt.image_path?.toLowerCase().endsWith(".pdf") && <span className="receipt-pdf-badge">PDF</span>}
                 </div>
@@ -4362,7 +4362,7 @@ function App() {
           </div>
           {!receiptItemCurrencyColumnsReady && (
             <p className="hint warning">
-              Hinweis: Diese Datenbank lÃ¤uft noch im alten EUR-Modus. FremdwÃ¤hrung wird erst nach der Migration vollstÃ¤ndig angezeigt.
+              Hinweis: Diese Datenbank läuft noch im alten EUR-Modus. Fremdwährung wird erst nach der Migration vollständig angezeigt.
             </p>
           )}
             </>
@@ -4370,7 +4370,7 @@ function App() {
         </article>
 
         <article className="panel">
-          <div className="section-header-with-button" style={{ position: "sticky", top: 0, zIndex: 21 }}>
+          <div className="section-header-with-button" style={{ position: "sticky", top: 0, zIndex: 21, background: "#f8fffd", padding: "6px 0 8px", borderBottom: "1px solid rgba(16, 36, 62, 0.04)", boxShadow: "none" }}>
             <button
               onClick={() => toggleSection("receipt-items")}
               style={{
@@ -4386,7 +4386,7 @@ function App() {
               }}
               title="Sektion ein-/ausblenden"
             >
-              {collapsedSections.has("receipt-items") ? "+" : "-"}
+                {collapsedSections.has("receipt-items") ? "▸" : "▾"}
             </button>
             <h2 style={{ margin: 0 }}>Positionen Beleg</h2>
           </div>
@@ -4666,7 +4666,7 @@ function App() {
                 }}
                 title="Sektion ein-/ausblenden"
               >
-                {collapsedSections.has("household-book") ? "âŠ•" : "âŠ–"}
+                {collapsedSections.has("household-book") ? "▸" : "▾"}
               </button>
               <h2 style={{ margin: 0 }}>Haushaltsbuch</h2>
             </div>
@@ -4675,7 +4675,7 @@ function App() {
             {!collapsedSections.has("household-book") && (
               <div className="household-header-actions">
                 <button className="btn secondary" onClick={(e) => { e.stopPropagation(); setShowCostCenterModal(true); }}>
-                  KostentrÃ¤ger bearbeiten
+                  Kostenträger bearbeiten
                 </button>
                 <button
                   className="btn secondary"
@@ -4710,11 +4710,11 @@ function App() {
           </div>
 
           <div className="cost-group-summary year-overview-summary">
-            <h3>JahresÃ¼bersicht {costGroupYearOverview.year}</h3>
+            <h3>Jahresübersicht {costGroupYearOverview.year}</h3>
             {!costGroupYearOverview.maxMonthTotal && <p className="hint">Noch keine Ausgaben im laufenden Jahr vorhanden.</p>}
             {!!costGroupYearOverview.maxMonthTotal && (
               <div className="year-overview-chart-wrap">
-                <div className="year-overview-chart" role="img" aria-label={`JahresÃ¼bersicht ${costGroupYearOverview.year}, gestapelte Monatsbalken nach Kostengruppen`}>
+                <div className="year-overview-chart" role="img" aria-label={`Jahresübersicht ${costGroupYearOverview.year}, gestapelte Monatsbalken nach Kostengruppen`}>
                   {costGroupYearOverview.months.map((month) => (
                     <div className="year-overview-month" key={month.label}>
                       <div className="year-overview-bar" title={`${month.label}: ${euro.format(month.total)}`}>
@@ -4725,8 +4725,8 @@ function App() {
                               key={`${month.label}-${segment.name}`}
                               className="year-overview-segment"
                               style={{ height: `${Math.max(height, 0)}%`, backgroundColor: segment.color }}
-                              title={`${month.label} Â· ${segment.name}: ${euro.format(segment.total)}`}
-                              aria-label={`${month.label} Â· ${segment.name}: ${euro.format(segment.total)}`}
+                              title={`${month.label} · ${segment.name}: ${euro.format(segment.total)}`}
+                              aria-label={`${month.label} · ${segment.name}: ${euro.format(segment.total)}`}
                             />
                           );
                         }) : <span className="year-overview-empty" />}
@@ -4752,7 +4752,7 @@ function App() {
           </div>
 
           <div className="cost-group-summary">
-            <h3>KostenÃ¼bersicht nach Kostengruppen</h3>
+            <h3>Kostenübersicht nach Kostengruppen</h3>
             {!costGroupTotals.length && <p className="hint">Noch keine Positionen mit Kosten vorhanden.</p>}
             {!!costGroupTotals.length && (
               <div className="cost-group-summary-list">
@@ -4770,7 +4770,7 @@ function App() {
           </div>
 
           <div className="cost-group-summary">
-            <h3>KostenÃ¼bersicht nach KostentrÃ¤gern</h3>
+            <h3>Kostenübersicht nach Kostenträgern</h3>
             {!costCenterTotals.length && <p className="hint">Noch keine Kosten vorhanden.</p>}
             {!!costCenterTotals.length && (
               <div className="cost-group-summary-list">
@@ -4788,7 +4788,7 @@ function App() {
           </div>
 
           <div className="cost-group-summary-actions">
-            <p className="hint">Tippe in diese Karte, um die Liste der Kostengruppen zu Ã¶ffnen.</p>
+            <p className="hint">Tippe in diese Karte, um die Liste der Kostengruppen zu öffnen.</p>
           </div>
           </>
           )}
@@ -4810,7 +4810,7 @@ function App() {
               }}
               title="Sektion ein-/ausblenden"
             >
-              {collapsedSections.has("settlement") ? "âŠ•" : "âŠ–"}
+              {collapsedSections.has("settlement") ? "▸" : "▾"}
             </button>
             <h2 style={{ margin: 0 }}>Verrechnung</h2>
           </div>
@@ -4887,7 +4887,7 @@ function App() {
                   </div>
                   {diff > 0.01 && (
                     <p style={{ color: "red", fontSize: "0.9em", marginTop: "8px", padding: "8px", backgroundColor: "#ffe0e0", borderRadius: "4px" }}>
-                      âš ï¸ Summe der Konten ({euro.format(summedTotal)}) â‰  Gesamtausgaben ({euro.format(mainTotal)})
+                      ⚠️ Summe der Konten ({euro.format(summedTotal)}) ≠ Gesamtausgaben ({euro.format(mainTotal)})
                     </p>
                   )}
                 </div>
@@ -4922,7 +4922,7 @@ function App() {
                 zahlungen[accountId] = (zahlungen[accountId] || 0) + amount;
               }
               
-              // 2. KOSTENTRÃ„GER: Sum items by their assigned_cost_center_id
+              // 2. KOSTENTRÄGER: Sum items by their assigned_cost_center_id
               // Then map back to the family_account that has that cost_center_id
               const kostentraegerPerCostCenter = {}; // costCenterId -> amount
               for (const receipt of receipts) {
@@ -4954,7 +4954,7 @@ function App() {
                 kostentraegerPerAccount[defaultFamilyAccount.id] = kostentraegerPerCostCenter[defaultFamilyAccount.cost_center_id];
               }
               
-              // 3. AUSGLEICH = Zahlungen - KostentrÃ¤ger
+              // 3. AUSGLEICH = Zahlungen - Kostenträger
               const ausgleiche = {}; // accountId -> balance
               for (const account of accounts) {
                 ausgleiche[account.id] = (zahlungen[account.id] || 0) - (kostentraegerPerAccount[account.id] || 0);
@@ -4963,8 +4963,8 @@ function App() {
               // Debug
               console.log("ðŸ” DEBUG Verrechnung (Settlement - mit assigned_cost_center_id):");
               console.log("  Zahlungen:", zahlungen);
-              console.log("  KostentrÃ¤ger per CostCenter:", kostentraegerPerCostCenter);
-              console.log("  KostentrÃ¤ger per Account:", kostentraegerPerAccount);
+              console.log("  Kostenträger per CostCenter:", kostentraegerPerCostCenter);
+              console.log("  Kostenträger per Account:", kostentraegerPerAccount);
               console.log("  Ausgleiche:", ausgleiche);
               
               // Get debtors (negative = zahlt) and creditors (positive = erhÃ¤lt)
@@ -4978,7 +4978,7 @@ function App() {
                 .map(([id, bal]) => ({ id, name: accounts.find(a => a.id === id)?.name || "?", color: accounts.find(a => a.id === id)?.color, account: accounts.find(a => a.id === id), amount: bal }));
               
               if (!debtors.length && !creditors.length) {
-                return <p className="hint">âœ“ Alle Konten sind ausgeglichen!</p>;
+                return <p className="hint">✓ Alle Konten sind ausgeglichen!</p>;
               }
               
               return (
@@ -4997,7 +4997,7 @@ function App() {
                       <div key={creditor.id} className="cost-group-summary-row" style={buildSummaryRowStyle(creditor.color)}>
                         <span className="cost-group-name">
                           <span className="cost-group-dot" style={{ backgroundColor: creditor.color }} />
-                          {creditor.name} erhÃ¤lt
+                          {creditor.name} erhält
                         </span>
                         <strong>{euro.format(creditor.amount)}</strong>
                       </div>
@@ -5017,14 +5017,14 @@ function App() {
                       return (
                         <div key={`settlement-${debtor.id}`} style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
                           <strong style={{ color: debtor.color }}>{debtor.name}</strong>
-                          <span>â†’</span>
+                          <span>→</span>
                           {validCreditors.map(creditor => (
                             <button
                               key={`settlement-${debtor.id}-${creditor.id}`}
                               className="btn secondary mini-btn"
                               disabled={busy}
                               onClick={() => createSettlementReceipt(debtor.account, creditor.account, creditor.amount)}
-                              title={`${debtor.name} zahlt ${creditor.amount}â‚¬ an ${creditor.name}`}
+                              title={`${debtor.name} zahlt ${creditor.amount}€ an ${creditor.name}`}
                             >
                               {creditor.name} {euro.format(creditor.amount)}
                             </button>

@@ -671,11 +671,12 @@ label {
   position: sticky;
   top: 0;
   z-index: 30;
-  background: transparent;
+  background: rgba(248, 253, 251, 0.42);
   backdrop-filter: none;
   padding-bottom: 6px;
   margin-bottom: 8px;
-  border-bottom: none;
+  border-bottom: 1px solid rgba(16, 36, 62, 0.03);
+  box-shadow: none;
 }
 
 .receipt-button {
@@ -1064,6 +1065,17 @@ label {
   gap: 16px;
 }
 
+.receipts-sticky-palette .section-header-with-button {
+  position: sticky;
+  top: 0;
+  z-index: 31;
+  background: rgba(248, 253, 251, 0.42);
+  backdrop-filter: none;
+  padding: 6px 0 8px;
+  border-bottom: 1px solid rgba(16, 36, 62, 0.03);
+  box-shadow: none;
+}
+
 .section-header-with-button h2 {
   margin-bottom: 0;
   flex: 1;
@@ -1082,9 +1094,11 @@ label {
   position: sticky;
   top: 0;
   z-index: 22;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(248, 253, 251, 0.42);
+  backdrop-filter: none;
   padding: 6px 0 8px;
-  border-bottom: 1px solid rgba(16, 36, 62, 0.08);
+  border-bottom: 1px solid rgba(16, 36, 62, 0.03);
+  box-shadow: none;
 }
 
 .household-header-actions-row {
@@ -1099,9 +1113,11 @@ label {
   position: sticky;
   top: 0;
   z-index: 22;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(248, 253, 251, 0.42);
+  backdrop-filter: none;
   padding: 6px 0 8px;
-  border-bottom: 1px solid rgba(16, 36, 62, 0.08);
+  border-bottom: 1px solid rgba(16, 36, 62, 0.03);
+  box-shadow: none;
 }
 
 .household-header-left {
