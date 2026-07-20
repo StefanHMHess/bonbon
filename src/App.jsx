@@ -3350,7 +3350,7 @@ function App() {
       )}
 
       {isAdmin && (
-        <section className="panel setup-panel" style={{ display: 'none' }}>
+        <section className="panel setup-panel" style={{  }}>
           <h2>Benutzerfreigaben</h2>
           <p className="hint">Neue Benutzer erscheinen hier automatisch nach ihrer ersten Konto-Anlage oder Anmeldung und koennen dann freigegeben werden.</p>
           {!pendingUsers.length && <p className="hint">Keine offenen Freigaben.</p>}
