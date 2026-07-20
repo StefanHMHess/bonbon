@@ -13,7 +13,7 @@ const dateTimeDE = new Intl.DateTimeFormat("de-DE", {
 const dateDE = new Intl.DateTimeFormat("de-DE", { dateStyle: "short" });
 const APP_VERSION = "v1.0.1";
 const CURRENCY_OPTIONS = ["EUR", "TRY", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF"];
-const CURRENCY_SYMBOL = { EUR: "â‚¬", TRY: "â‚º", USD: "$", GBP: "Â£", CHF: "Fr", SEK: "kr", NOK: "kr", DKK: "kr", PLN: "zÅ‚", CZK: "KÄ", HUF: "Ft" };
+const CURRENCY_SYMBOL = { EUR: "€", TRY: "₺", USD: "$", GBP: "£", CHF: "Fr", SEK: "kr", NOK: "kr", DKK: "kr", PLN: "zł", CZK: "Kč", HUF: "Ft" };
 const AUTH_EMAIL_STORAGE_KEY = "bonbox_auth_email";
 const VERIFIED_EMAIL_STORAGE_KEY = "bonbox_verified_email";
 const EMERGENCY_ACCESS_ACTIVE_STORAGE_KEY = "bonbox_emergency_access_active";
@@ -3323,7 +3323,7 @@ function App() {
           <img src="/bonbon-logo.svg" alt="BonBox" className="hero-logo" />
           <div>
             <h1>BonBox</h1>
-            <p>Bitte anmelden, um dein Haushaltsbuch zu Ã¶ffnen.</p>
+            <p>Bitte anmelden, um dein Haushaltsbuch zu öffnen.</p>
           </div>
           <span className="version-badge">{APP_VERSION}</span>
         </header>
@@ -3331,7 +3331,7 @@ function App() {
         <section className="panel setup-panel">
           <h2>Login mit E-Mail und Passwort</h2>
           <p className="hint">
-            Zugang gibt es nur mit echtem Login. Neue Benutzer koennen einen Zugang anlegen, bleiben aber bis zur Admin-Freigabe gesperrt.
+            Zugang gibt es nur mit echtem Login. Neue Benutzer können einen Zugang anlegen, bleiben aber bis zur Admin-Freigabe gesperrt.
           </p>
           <input
             type="email"
@@ -3352,10 +3352,10 @@ function App() {
           />
           <div className="receipt-actions">
             <button className="btn" disabled={busy || !hasSetup} onClick={signInWithPassword}>
-              {busy ? "Anmeldung laeuft..." : "Anmelden"}
+              {busy ? "Anmeldung läuft..." : "Anmelden"}
             </button>
             <button className="btn secondary" disabled={busy || !hasSetup} onClick={sendPasswordReset}>
-              {busy ? "Sende..." : "Passwort setzen/zuruecksetzen"}
+              {busy ? "Sende..." : "Passwort setzen/zurücksetzen"}
             </button>
             <button className="btn secondary" disabled={busy || !hasSetup} onClick={signUpWithPassword}>
               {busy ? "Lege an..." : "Zugang anlegen"}
@@ -3372,11 +3372,11 @@ function App() {
             </p>
           )}
           <p className="hint">
-            Bestehende Magic-Link-Benutzer koennen einmalig ein Passwort setzen und sich danach normal mit E-Mail und Passwort anmelden.
+            Bestehende Magic-Link-Benutzer können einmalig ein Passwort setzen und sich danach normal mit E-Mail und Passwort anmelden.
           </p>
           {canSeeEmergencyAccessButton && (
             <p className="hint">
-              Der Notzugang ist absichtlich nur einmal pro Browser verfuegbar und endet spaetestens beim Abmelden.
+              Der Notzugang ist absichtlich nur einmal pro Browser verfügbar und endet spätestens beim Abmelden.
             </p>
           )}
           {success && <p className="hint success">{success}</p>}
@@ -3393,7 +3393,7 @@ function App() {
           <img src="/bonbon-logo.svg" alt="BonBox" className="hero-logo" />
           <div>
             <h1>BonBox</h1>
-            <p>Dein Konto wird geprÃ¼ft.</p>
+            <p>Dein Konto wird geprüft.</p>
           </div>
           <span className="version-badge">{APP_VERSION}</span>
         </header>
@@ -3411,7 +3411,7 @@ function App() {
               Status aktualisieren
             </button>
             <button className="btn" disabled={bootstrapBusy} onClick={bootstrapFirstAdmin}>
-              {bootstrapBusy ? "PrÃ¼fe..." : "Als ersten Admin freischalten"}
+              {bootstrapBusy ? "Prüfe..." : "Als ersten Admin freischalten"}
             </button>
             <button className="btn secondary" onClick={signOut}>Abmelden</button>
           </div>
@@ -3440,18 +3440,18 @@ function App() {
         <section className="panel setup-panel" style={{ background: "#fff3cd", borderColor: "#ffc107", borderLeft: "4px solid #ffc107" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div style={{ flex: 1 }}>
-              <h2 style={{ color: "#856404", margin: "0 0 12px 0" }}>ðŸš€ Setup erforderlich!</h2>
+              <h2 style={{ color: "#856404", margin: "0 0 12px 0" }}>🚀 Setup erforderlich!</h2>
               <p style={{ color: "#856404", margin: "0 0 12px 0" }}>
-                <strong>Die KostentrÃ¤ger-Spalte existiert NICHT in der Datenbank!</strong> Deswegen werden Ihre KostentrÃ¤ger-Auswahlen nicht gespeichert.
+                <strong>Die Kostenträger-Spalte existiert NICHT in der Datenbank!</strong> Deswegen werden Ihre Kostenträger-Auswahlen nicht gespeichert.
               </p>
               <p style={{ color: "#856404", margin: "0 0 12px 0" }}>
-                Ã–ffnen Sie diese Setup-Seite und fÃ¼hren Sie die SQL aus:
+                Öffnen Sie diese Setup-Seite und führen Sie die SQL aus:
               </p>
               <button className="btn" onClick={() => { window.open('/setup-assigned-cost-center.html', '_blank'); }}>
-                ðŸ“‹ Setup-Anleitung Ã¶ffnen
+                📋 Setup-Anleitung öffnen
               </button>
               <p style={{ color: "#856404", fontSize: "12px", margin: "8px 0 0 0" }}>
-                Nach der Setup kÃ¶nnen Sie KostentrÃ¤ger auswÃ¤hlen und speichern.
+                Nach dem Setup können Sie Kostenträger auswählen und speichern.
               </p>
             </div>
             <button 
@@ -3469,37 +3469,34 @@ function App() {
         <section className="panel setup-panel">
           <h2>Konfiguration fehlt</h2>
           <p className="hint error">
-            Bitte in .env die Werte fÃ¼r VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY und
+            Bitte in .env die Werte für VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY und
             VITE_DEFAULT_HOUSEHOLD_ID setzen.
           </p>
         </section>
       )}
 
-      {isAdmin && (
+      {isAdmin && pendingUsers.length > 0 && (
         <section className="panel setup-panel">
           <h2>Benutzerfreigaben</h2>
           <p className="hint">Neue Benutzer erscheinen hier automatisch nach ihrer ersten Konto-Anlage oder Anmeldung und koennen dann freigegeben werden.</p>
-          {!pendingUsers.length && <p className="hint">Keine offenen Freigaben.</p>}
-          {!!pendingUsers.length && (
-            <div className="receipt-list">
-              {pendingUsers.map((entry) => (
-                <div className="receipt-button" key={entry.user_id}>
-                  <div>
-                    <strong>{entry.email || entry.user_id}</strong>
-                    <small>{formatReceiptDateTime({ created_at: entry.created_at })}</small>
-                  </div>
-                  <div className="receipt-actions">
-                    <button className="btn secondary mini-btn" onClick={() => approveUser(entry.user_id)}>
-                      Freigeben
-                    </button>
-                    <button className="btn secondary mini-btn" onClick={() => rejectUser(entry.user_id)}>
-                      Ablehnen
-                    </button>
-                  </div>
+          <div className="receipt-list">
+            {pendingUsers.map((entry) => (
+              <div className="receipt-button" key={entry.user_id}>
+                <div>
+                  <strong>{entry.email || entry.user_id}</strong>
+                  <small>{formatReceiptDateTime({ created_at: entry.created_at })}</small>
                 </div>
-              ))}
-            </div>
-          )}
+                <div className="receipt-actions">
+                  <button className="btn secondary mini-btn" onClick={() => approveUser(entry.user_id)}>
+                    Freigeben
+                  </button>
+                  <button className="btn secondary mini-btn" onClick={() => rejectUser(entry.user_id)}>
+                    Ablehnen
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </section>
       )}
 
@@ -4389,7 +4386,7 @@ function App() {
               }}
               title="Sektion ein-/ausblenden"
             >
-              {collapsedSections.has("receipt-items") ? "âŠ•" : "âŠ–"}
+              {collapsedSections.has("receipt-items") ? "+" : "-"}
             </button>
             <h2 style={{ margin: 0 }}>Positionen Beleg</h2>
           </div>
@@ -4427,9 +4424,9 @@ function App() {
                   className="btn secondary"
                   disabled={busy || !currentReceipt?.receipt_items?.length}
                   onClick={() => transferCostCenterToAll(currentReceipt)}
-                  title="KostentrÃ¤ger der ersten Position auf alle Ã¼bertragen"
+                  title="Kostenträger der ersten Position auf alle übertragen"
                 >
-                  KostentrÃ¤g. Ã¼bernehm.
+                  Kostenträger übernehmen
                 </button>
               </div>
             </div>
@@ -4437,12 +4434,12 @@ function App() {
           {!collapsedSections.has("receipt-items") && (
             <>
 
-          {!currentReceipt && <p className="hint">WÃ¤hle oben einen Beleg aus.</p>}
+          {!currentReceipt && <p className="hint">Wähle oben einen Beleg aus.</p>}
           {currentReceipt && (
             <>
               {!receiptItemCurrencyColumnsReady && (
                 <p className="hint warning">
-                  WÃ¤hrungsÃ¤nderungen sind erst nach der Migration verfÃ¼gbar. Aktuell werden Positionen als EUR gefÃ¼hrt.
+                  Währungsänderungen sind erst nach der Migration verfügbar. Aktuell werden Positionen als EUR geführt.
                 </p>
               )}
 
@@ -4464,10 +4461,10 @@ function App() {
                           className="btn secondary mini-btn"
                           disabled={busy}
                           onClick={() => deleteReceiptItem(item)}
-                          title="Position lÃ¶schen"
+                          title="Position löschen"
                           style={{ padding: "4px 6px", minWidth: "32px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: "-2px" }}
                         >
-                          ðŸ—‘ï¸
+                          🗑️
                         </button>
                       </div>
                       
@@ -4499,7 +4496,7 @@ function App() {
                             <option key={currency} value={currency}>{CURRENCY_SYMBOL[currency] ?? currency}</option>
                           ))}
                         </select>
-                        {!receiptItemCurrencyColumnsReady && <span className="fallback-badge">â‚¬</span>}
+                        {!receiptItemCurrencyColumnsReady && <span className="fallback-badge">€</span>}
                       </div>
                     </div>
                     
@@ -4525,7 +4522,7 @@ function App() {
                       </div>
 
                       <div className="item-assignment">
-                        <span className="item-assignment-label">KostentrÃ¤ger</span>
+                        <span className="item-assignment-label">Kostenträger</span>
                         <div className={`color-select-wrapper ${!assignedCostCenterByItemId.get(item.id) ? 'missing-required' : ''}`} style={!assignedCostCenterByItemId.get(item.id) ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", height: "32px", minWidth: 0, display: "flex", alignItems: "center" } : {...buildColorInputStyle(
                           costCenterOptions.find(cc => cc.id === assignedCostCenterByItemId.get(item.id))?.color
                         ), height: "32px", minWidth: 0, display: "flex", alignItems: "center"}}>
@@ -4534,10 +4531,10 @@ function App() {
                             value={assignedCostCenterByItemId.get(item.id) || ""}
                             onChange={(e) => assignItemToCostCenter(item, e.target.value || null)}
                             disabled={!costCenterOptions.length}
-                            title="KostentrÃ¤ger"
+                            title="Kostenträger"
                             style={{ width: "100%", height: "100%", fontSize: "0.85rem" }}
                           >
-                            <option value="">- KostentrÃ¤ger -</option>
+                            <option value="">- Kostenträger -</option>
                             {costCenterOptions.map((costCenter) => (
                               <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
                             ))}
@@ -4551,12 +4548,12 @@ function App() {
 
               {!accountCatalogReady && (
                 <p className="hint error">
-                  KostentrÃ¤ger-Tabelle noch nicht verfÃ¼gbar: {accountCatalogMessage}
+                  Kostenträger-Tabelle noch nicht verfügbar: {accountCatalogMessage}
                 </p>
               )}
 
               <div className="manual-box">
-                <h3>Position manuell hinzufÃ¼gen</h3>
+                <h3>Position manuell hinzufügen</h3>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px", paddingBottom: "8px", borderBottom: "1px solid rgba(0,0,0,0.05)", minWidth: 0 }}>
                   {/* Left column */}
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1, minWidth: 0 }}>
@@ -4617,9 +4614,9 @@ function App() {
                         value={manualDraft.accountId || ""}
                         onChange={(e) => setManualDraft((s) => ({ ...s, accountId: e.target.value }))}
                         disabled={!accountCatalogReady || !costCenterOptions.length}
-                        title="KostentrÃ¤ger"
+                        title="Kostenträger"
                       >
-                        <option value="">- KostentrÃ¤ger -</option>
+                        <option value="">- Kostenträger -</option>
                         {costCenterOptions.map((costCenter) => (
                           <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
                         ))}
@@ -4627,7 +4624,7 @@ function App() {
                     </div>
                   </div>
                 </div>
-                <button className="btn secondary" onClick={addManualItem} style={{ marginBottom: "16px" }}>HinzufÃ¼gen</button>
+                <button className="btn secondary" onClick={addManualItem} style={{ marginBottom: "16px" }}>Hinzufügen</button>
               </div>
             </>
           )}
