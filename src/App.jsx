@@ -1679,12 +1679,33 @@ function App() {
         .single();
 
       if (insertError) {
-        setError(insertError.message);
-        setApprovalStatus("pending");
-        return;
-      }
+        const duplicateInsert =
+          insertError.code === "23505" ||
+          String(insertError.message || "").toLowerCase().includes("duplicate key value");
 
-      row = created;
+        if (!duplicateInsert) {
+          setError(insertError.message);
+          setApprovalStatus("pending");
+          return;
+        }
+
+        // Another request/path already inserted the same user_access row.
+        const { data: existing, error: refetchError } = await supabase
+          .from("user_access")
+          .select("user_id, email, status, is_admin, approved_at, created_at")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (refetchError || !existing) {
+          setError(refetchError?.message || insertError.message);
+          setApprovalStatus("pending");
+          return;
+        }
+
+        row = existing;
+      } else {
+        row = created;
+      }
     }
 
     setAccessRecord(row);
