@@ -11,7 +11,7 @@ const dateTimeDE = new Intl.DateTimeFormat("de-DE", {
   timeStyle: "short",
 });
 const dateDE = new Intl.DateTimeFormat("de-DE", { dateStyle: "short" });
-const APP_VERSION = "v1.0.1";
+const APP_VERSION = "v1.0.2";
 const CURRENCY_OPTIONS = ["EUR", "TRY", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF"];
 const CURRENCY_SYMBOL = { EUR: "€", TRY: "₺", USD: "$", GBP: "£", CHF: "Fr", SEK: "kr", NOK: "kr", DKK: "kr", PLN: "zł", CZK: "Kč", HUF: "Ft" };
 const AUTH_EMAIL_STORAGE_KEY = "bonbox_auth_email";
