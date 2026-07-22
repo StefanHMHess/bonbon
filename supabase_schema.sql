@@ -3,6 +3,11 @@
 
 create extension if not exists "pgcrypto";
 
+insert into storage.buckets (id, name, public)
+values ('receipts', 'receipts', false)
+on conflict (id) do update
+set public = excluded.public;
+
 create table if not exists public.households (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -83,6 +88,32 @@ drop policy if exists receipt_items_update_all on public.receipt_items;
 create policy receipt_items_select_all on public.receipt_items for select using (true);
 create policy receipt_items_insert_all on public.receipt_items for insert with check (true);
 create policy receipt_items_update_all on public.receipt_items for update using (true) with check (true);
+
+drop policy if exists receipts_objects_select_authenticated on storage.objects;
+drop policy if exists receipts_objects_insert_authenticated on storage.objects;
+drop policy if exists receipts_objects_update_authenticated on storage.objects;
+drop policy if exists receipts_objects_delete_authenticated on storage.objects;
+
+create policy receipts_objects_select_authenticated on storage.objects
+  for select
+  to authenticated
+  using (bucket_id = 'receipts');
+
+create policy receipts_objects_insert_authenticated on storage.objects
+  for insert
+  to authenticated
+  with check (bucket_id = 'receipts');
+
+create policy receipts_objects_update_authenticated on storage.objects
+  for update
+  to authenticated
+  using (bucket_id = 'receipts')
+  with check (bucket_id = 'receipts');
+
+create policy receipts_objects_delete_authenticated on storage.objects
+  for delete
+  to authenticated
+  using (bucket_id = 'receipts');
 
 -- Example seed row. Save the generated UUID and put it into VITE_DEFAULT_HOUSEHOLD_ID.
 insert into public.households(name) values ('BonBon Haushalt') on conflict do nothing;
