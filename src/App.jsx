@@ -11,7 +11,7 @@ const dateTimeDE = new Intl.DateTimeFormat("de-DE", {
   timeStyle: "short",
 });
 const dateDE = new Intl.DateTimeFormat("de-DE", { dateStyle: "short" });
-const APP_VERSION = "v1.0.2";
+const APP_VERSION = "v1.0.3";
 const CURRENCY_OPTIONS = ["EUR", "TRY", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF"];
 const CURRENCY_SYMBOL = { EUR: "€", TRY: "₺", USD: "$", GBP: "£", CHF: "Fr", SEK: "kr", NOK: "kr", DKK: "kr", PLN: "zł", CZK: "Kč", HUF: "Ft" };
 const AUTH_EMAIL_STORAGE_KEY = "bonbox_auth_email";
@@ -3443,7 +3443,7 @@ function App() {
         <img src="/bonbon-logo.svg" alt="BonBox" className="hero-logo" />
         <div>
           <h1>BonBox</h1>
-          <p>Belege scannen, KI-Auswertung, Haushaltsbuch</p>
+          <p>Belege scannen, KI-Auswertung, Haushaltsbuch, Verrechnung</p>
         </div>
         <div className="top-right-badges">
           <span className="version-badge">{APP_VERSION}</span>
@@ -4136,8 +4136,8 @@ function App() {
 
       <section className="grid two workflow-stack">
         <article className="panel">
-          <div className="receipts-sticky-palette">
-            <div className="section-header-with-button" style={{ paddingBottom: "0" }}>
+          <div className={`receipts-sticky-palette${collapsedSections.has("receipts") ? " is-collapsed" : ""}`}>
+            <div className={`section-header-with-button${collapsedSections.has("receipts") ? " is-collapsed" : ""}`} style={{ paddingBottom: "0" }}>
               <button
                 onClick={() => toggleSection("receipts")}
                 style={{
@@ -4148,7 +4148,6 @@ function App() {
                   display: "flex",
                   alignItems: "center",
                   fontSize: "1.1rem",
-                  marginRight: "8px",
                   color: "inherit",
                 }}
                 title="Sektion ein-/ausblenden"
@@ -4385,7 +4384,7 @@ function App() {
         </article>
 
         <article className="panel">
-          <div className="section-header-with-button" style={{ position: "sticky", top: 0, zIndex: 21, background: "#f8fffd", padding: "6px 0 8px", borderBottom: "1px solid rgba(16, 36, 62, 0.04)", boxShadow: "none" }}>
+          <div className={`section-header-with-button${collapsedSections.has("receipt-items") ? " is-collapsed" : ""}`} style={{ position: "sticky", top: 0, zIndex: 21, background: "#f8fffd", padding: "6px 0 8px", borderBottom: "1px solid rgba(16, 36, 62, 0.04)", boxShadow: "none" }}>
             <button
               onClick={() => toggleSection("receipt-items")}
               style={{
@@ -4396,7 +4395,6 @@ function App() {
                 display: "flex",
                 alignItems: "center",
                 fontSize: "1.1rem",
-                marginRight: "8px",
                 color: "inherit",
               }}
               title="Sektion ein-/ausblenden"
