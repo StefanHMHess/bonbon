@@ -9,9 +9,24 @@ const corsHeaders = {
 
 function normalizeCurrencyCode(value: unknown) {
   const normalized = String(value || "EUR").trim().toUpperCase();
-  if (normalized === "TL" || normalized === "₺" || normalized === "TRY") return "TRY";
-  if (normalized === "EURO") return "EUR";
-  return normalized || "EUR";
+  const aliases: Record<string, string> = {
+    "€": "EUR",
+    EURO: "EUR",
+    EUR: "EUR",
+    TL: "TRY",
+    TRY: "TRY",
+    TYR: "TRY",
+    TRL: "TRY",
+    YTL: "TRY",
+    "₺": "TRY",
+  };
+  if (aliases[normalized]) return aliases[normalized];
+
+  const supported = new Set(["EUR", "TRY", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF"]);
+  if (supported.has(normalized)) return normalized;
+
+  // Fall back to EUR for OCR typos like "TLR".
+  return "EUR";
 }
 
 function roundMoney(value: unknown) {
@@ -183,12 +198,14 @@ Deno.serve(async (req: Request) => {
 
     const prompt = [
       "Extrahiere den Kassenbon als JSON.",
-      "Erkenne die Originalwährung exakt. Für türkische Belege: TRY ausgeben. Achte auf Symbole wie ₺, TL, Lira.",
+      "Erkenne die Originalwährung exakt anhand von Symbolen/Codes am Gesamtbetrag (z. B. €, EUR, ₺, TL, TRY, $, USD).",
+      "Die Sprache des Belegs ist kein Währungssignal. Türkischer Text kann trotzdem EUR bedeuten.",
+      "Wenn am Gesamtbetrag EUR/€ steht, dann currency unbedingt auf EUR setzen.",
       "Erkenne Datum im Format YYYY-MM-DD und Uhrzeit im Format HH:MM oder HH:MM:SS.",
       "Antwortformat exakt:",
       '{"merchant":"...","receiptDate":"YYYY-MM-DD","receiptTime":"HH:MM","totalAmount":0,"currency":"EUR","items":[{"description":"...","quantity":1,"amount":0}]}',
       "Werte amount/quantity immer in Originalwährung.",
-      "Für türkische Belege: currency muss TRY sein, auch wenn in Zahlen Punkte/Kommas anders formatiert.",
+      "Wenn keine eindeutige Fremdwährung erkennbar ist, verwende EUR.",
       "Keinen zusätzlichen Text ausgeben."
     ].join("\n");
 

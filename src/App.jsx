@@ -266,9 +266,24 @@ function parseAmountDE(value) {
 
 function normalizeCurrencyCode(value) {
   const normalized = String(value || "EUR").trim().toUpperCase();
-  if (normalized === "TL" || normalized === "TRY" || normalized === "TYR" || normalized === "â‚º") return "TRY";
-  if (normalized === "EURO") return "EUR";
-  return normalized || "EUR";
+  const aliases = {
+    "€": "EUR",
+    EURO: "EUR",
+    EUR: "EUR",
+    TL: "TRY",
+    TRY: "TRY",
+    TYR: "TRY",
+    TRL: "TRY",
+    YTL: "TRY",
+    "₺": "TRY",
+  };
+  if (aliases[normalized]) return aliases[normalized];
+
+  const supported = new Set(CURRENCY_OPTIONS);
+  if (supported.has(normalized)) return normalized;
+
+  // Fall back to EUR for OCR typos like "TLR" instead of propagating invalid codes.
+  return "EUR";
 }
 
 function roundMoney(value) {
@@ -1136,7 +1151,7 @@ function App() {
     }
 
     if ((verify.count || 0) > 0) {
-      return { ok: false, message: "Beleg konnte nicht gelÃ¶scht werden. Bitte supabase_receipt_cleanup.sql ausfÃ¼hren." };
+      return { ok: false, message: "Beleg konnte nicht gelöscht werden. Bitte supabase_receipt_cleanup.sql ausführen." };
     }
 
     return { ok: true };
@@ -2018,7 +2033,7 @@ function App() {
   }
 
   async function deleteCostCenter(centerId) {
-    if (!centerId || !window.confirm("KostentrÃ¤ger wirklich lÃ¶schen?")) return;
+    if (!centerId || !window.confirm("Kostenträger wirklich löschen?")) return;
 
     setBusy(true);
     const { error } = await supabase
@@ -2029,10 +2044,10 @@ function App() {
 
     setBusy(false);
     if (error) {
-      setError("Fehler beim LÃ¶schen: " + error.message);
+      setError("Fehler beim Löschen: " + error.message);
       return;
     }
-    setSuccess("KostentrÃ¤ger gelÃ¶scht.");
+    setSuccess("Kostenträger gelöscht.");
     setNewReceiptCostCenterId(null);
     await loadCostCenters();
   }
@@ -2141,7 +2156,7 @@ function App() {
     }
 
     setItemAllocations((prev) => prev.filter((x) => x.receipt_item_id !== itemId));
-    setSuccess("Allocation gelÃ¶scht.");
+    setSuccess("Allocation gelöscht.");
     return true;
   }
 
@@ -2302,7 +2317,7 @@ function App() {
       return;
     }
 
-    setSuccess("Kostengruppe gelÃ¶scht.");
+    setSuccess("Kostengruppe gelöscht.");
     await loadCostGroups();
     await loadReceipts();
   }
@@ -2378,7 +2393,7 @@ function App() {
   async function deleteFamilyAccount(account) {
     if (!account?.id) return;
     if (account.account_type === "family") {
-      setError("Das Familienkonto kann nicht gelÃ¶scht werden.");
+      setError("Das Familienkonto kann nicht gelöscht werden.");
       return;
     }
 
@@ -2398,7 +2413,7 @@ function App() {
       return;
     }
 
-    setSuccess("KostentrÃ¤ger gelÃ¶scht.");
+    setSuccess("Kostenträger gelöscht.");
     await loadFamilyAccounts();
     await loadItemAllocations(receipts.flatMap((r) => (r.receipt_items || []).map((i) => i.id)).filter(Boolean));
   }
@@ -2714,7 +2729,7 @@ function App() {
 
   async function deleteReceipt(receipt) {
     if (!receipt?.id) return;
-    if (!window.confirm("Diesen Beleg wirklich lÃ¶schen? Alle Positionen und Zuordnungen werden entfernt.")) {
+    if (!window.confirm("Diesen Beleg wirklich löschen? Alle Positionen und Zuordnungen werden entfernt.")) {
       return;
     }
 
@@ -2730,7 +2745,7 @@ function App() {
       return;
     }
 
-    setSuccess("Beleg wurde gelÃ¶scht.");
+    setSuccess("Beleg wurde gelöscht.");
     setSelectedReceipt((prev) => (prev === receipt.id ? null : prev));
     await loadReceipts();
   }
@@ -3212,7 +3227,7 @@ function App() {
 
   async function deleteReceiptItem(item) {
     if (!item?.id) return;
-    if (!window.confirm("Position wirklich lÃ¶schen?")) return;
+    if (!window.confirm("Position wirklich löschen?")) return;
 
     setBusy(true);
     setError("");
@@ -3227,7 +3242,7 @@ function App() {
 
     if (allocError) {
       setBusy(false);
-      setError(`Fehler beim LÃ¶schen von Zuordnungen: ${allocError.message}`);
+      setError(`Fehler beim Löschen von Zuordnungen: ${allocError.message}`);
       return;
     }
 
@@ -3239,7 +3254,7 @@ function App() {
 
     if (itemError) {
       setBusy(false);
-      setError(`Fehler beim LÃ¶schen der Position: ${itemError.message}`);
+      setError(`Fehler beim Löschen der Position: ${itemError.message}`);
       return;
     }
 
@@ -3248,7 +3263,7 @@ function App() {
     }
 
     setBusy(false);
-    setSuccess("Position gelÃ¶scht.");
+    setSuccess("Position gelöscht.");
     await loadReceipts();
   }
 
@@ -4147,6 +4162,16 @@ function App() {
               <>
                 <div className="receipt-actions" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "4px", marginBottom: "5px", padding: "2px 0" }}>
                   <button
+                    className="btn"
+                    style={{ gridColumn: "span 1" }}
+                    onClick={() => {
+                      setNewReceiptCostCenterId(selectedCostCenterForReceipt || newReceiptCostCenterId || null);
+                      setSelectedReceipt(null);
+                    }}
+                  >
+                    Neuer Beleg
+                  </button>
+                  <button
                     className="btn secondary"
                     style={{ gridColumn: "span 2" }}
                     disabled={previewBusy || !currentReceipt.image_path}
@@ -4169,16 +4194,6 @@ function App() {
                     onClick={() => retryAnalysis(currentReceipt)}
                   >
                     Erneut analysieren
-                  </button>
-                  <button
-                    className="btn secondary"
-                    style={{ gridColumn: "span 1" }}
-                    onClick={() => {
-                      setNewReceiptCostCenterId(selectedCostCenterForReceipt || newReceiptCostCenterId || null);
-                      setSelectedReceipt(null);
-                    }}
-                  >
-                    Neuer Beleg
                   </button>
                 </div>
 
