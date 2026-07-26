@@ -11,7 +11,7 @@ const dateTimeDE = new Intl.DateTimeFormat("de-DE", {
   timeStyle: "short",
 });
 const dateDE = new Intl.DateTimeFormat("de-DE", { dateStyle: "short" });
-const APP_VERSION = "v1.0.3";
+const APP_VERSION = "v1.0.4";
 const CURRENCY_OPTIONS = ["EUR", "TRY", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF"];
 const CURRENCY_SYMBOL = { EUR: "€", TRY: "₺", USD: "$", GBP: "£", CHF: "Fr", SEK: "kr", NOK: "kr", DKK: "kr", PLN: "zł", CZK: "Kč", HUF: "Ft" };
 const AUTH_EMAIL_STORAGE_KEY = "bonbox_auth_email";
@@ -2792,7 +2792,35 @@ function App() {
     const groups = activeCostGroups();
     const currency = normalizeCurrencyCode(manualDraft.currency || "EUR");
     const exchangeRate = await getExchangeRateToEur(currency);
-    const originalAmount = roundMoney(manualDraft.amount || 0);
+    const rawManualAmount = String(manualDraft.amount || "").trim();
+    let parsedOriginalAmount;
+
+    if (!rawManualAmount) {
+      parsedOriginalAmount = 0;
+    } else {
+      const compactAmount = rawManualAmount.replace(/\s/g, "");
+      let normalizedAmount = compactAmount;
+
+      if (compactAmount.includes(",") && compactAmount.includes(".")) {
+        // Use the last separator as decimal separator and treat the other as thousands separator.
+        if (compactAmount.lastIndexOf(",") > compactAmount.lastIndexOf(".")) {
+          normalizedAmount = compactAmount.replace(/\./g, "").replace(",", ".");
+        } else {
+          normalizedAmount = compactAmount.replace(/,/g, "");
+        }
+      } else if (compactAmount.includes(",")) {
+        normalizedAmount = compactAmount.replace(",", ".");
+      }
+
+      const parsed = Number(normalizedAmount);
+      parsedOriginalAmount = Number.isFinite(parsed) ? parsed : null;
+    }
+
+    if (parsedOriginalAmount === null) {
+      setError("Bitte einen gültigen Betrag eingeben (z.B. 4,50).");
+      return;
+    }
+    const originalAmount = roundMoney(parsedOriginalAmount || 0);
     const amount = roundMoney(originalAmount * exchangeRate);
 
     const row = {
@@ -3034,15 +3062,23 @@ function App() {
     setError("");
     setSuccess("");
 
-    // First check merchant name, then fall back to item descriptions
-    const merchantCategory = inferCostGroupName(receipt.merchant || "", groups);
-    console.log(`[autoAssignCategories] Merchant: "${receipt.merchant}" â†’ Category: "${merchantCategory}"`);
+    // Use first item's category as template for all positions.
+    // If first item has no category yet, infer one once and apply it to all.
+    const firstItemCategory = String(items[0]?.category || "").trim();
+    const inferredCategory = inferCostGroupName(receipt.merchant || "", groups)
+      || inferCostGroupName(items[0]?.description || "", groups);
+    const targetCategory = firstItemCategory || inferredCategory || null;
+
+    if (!targetCategory) {
+      setBusy(false);
+      setError("Die erste Position hat noch keine Kostengruppe.");
+      return;
+    }
 
     for (const item of items) {
-      const category = merchantCategory || inferCostGroupName(item.description, groups);
       const { error: updateError } = await supabase
         .from("receipt_items")
-        .update({ category })
+        .update({ category: targetCategory })
         .eq("id", item.id);
 
       if (updateError) {
@@ -3053,7 +3089,7 @@ function App() {
     }
 
     setBusy(false);
-    setSuccess("Kostengruppen wurden automatisch zugeordnet.");
+    setSuccess("Kostengruppe der ersten Position wurde auf alle Positionen übertragen.");
     await loadReceipts();
   }
 
@@ -4567,35 +4603,34 @@ function App() {
 
               <div className="manual-box">
                 <h3>Position manuell hinzufügen</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px", paddingBottom: "8px", borderBottom: "1px solid rgba(0,0,0,0.05)", minWidth: 0 }}>
-                  {/* Left column */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1, minWidth: 0 }}>
-                    {/* Row 1: Description */}
-                    <input
-                      className="description-input"
-                      placeholder="Beschreibung"
-                      value={manualDraft.description}
-                      onChange={(e) => setManualDraft((s) => ({ ...s, description: e.target.value }))}
-                      style={{ minHeight: "32px", flex: 1, minWidth: 0 }}
-                    />
-                    
-                    {/* Row 2: Amount with currency */}
-                    <div className="amount-cell" style={{ display: "flex", gap: "4px", minHeight: "32px", flex: 1, minWidth: 0 }}>
+                <div className="receipt-item" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px", paddingBottom: "8px", borderBottom: "1px solid rgba(0,0,0,0.05)", minWidth: 0 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
+                    <div style={{ display: "flex", gap: "4px", alignItems: "flex-start", minWidth: 0, height: "40px" }}>
+                      <input
+                        className="description-input"
+                        placeholder="Beschreibung"
+                        value={manualDraft.description}
+                        onChange={(e) => setManualDraft((s) => ({ ...s, description: e.target.value }))}
+                        style={{ flex: 1, minWidth: 0, height: "40px" }}
+                      />
+                    </div>
+
+                    <div className="amount-cell" style={{ display: "flex", gap: "4px", height: "40px", minWidth: 0, alignItems: "center" }}>
                       <input
                         className="amount-input"
-                        type="number"
-                        step="0.01"
-                        placeholder="Betrag"
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="Betrag (z.B. 4,50)"
                         value={manualDraft.amount}
                         onChange={(e) => setManualDraft((s) => ({ ...s, amount: e.target.value }))}
-                        style={{ width: "100px", minWidth: 0 }}
+                        style={{ flex: 1, minWidth: 0, height: "100%" }}
                       />
                       <select
                         className="currency-input"
                         value={manualDraft.currency || "EUR"}
                         onChange={(e) => setManualDraft((s) => ({ ...s, currency: e.target.value }))}
                         disabled={!receiptItemCurrencyColumnsReady}
-                        style={{ width: "70px", minWidth: 0 }}
+                        style={{ width: "40px", minWidth: 0, height: "100%", flexShrink: 0, fontSize: "0.85rem" }}
                       >
                         {CURRENCY_OPTIONS.map((currency) => (
                           <option key={currency} value={currency}>{CURRENCY_SYMBOL[currency] ?? currency}</option>
@@ -4603,37 +4638,42 @@ function App() {
                       </select>
                     </div>
                   </div>
-                  
-                  {/* Right column */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1, minWidth: 0 }}>
-                    {/* Row 1: Cost Group */}
-                    <div className={`color-select-wrapper ${!manualDraft.category && manualDraft.description ? 'missing-required' : ''}`} style={!manualDraft.category && manualDraft.description ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", minHeight: "32px" } : (!manualDraft.category ? { border: "none", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", minHeight: "32px" } : {...buildColorInputStyle(activeCostGroups().find(g => g.name === manualDraft.category)?.color), minHeight: "32px"})}>
-                      <select
-                        className="category-input cost-group-input"
-                        value={manualDraft.category || ""}
-                        onChange={(e) => setManualDraft((s) => ({ ...s, category: e.target.value }))}
-                      >
-                        <option value="">- Kostengruppe -</option>
-                        {activeCostGroups().map((group) => (
-                          <option key={group.id || group.name} value={group.name}>{group.name}</option>
-                        ))}
-                      </select>
+
+                  <div className="item-assignments">
+                    <div className="item-assignment">
+                      <span className="item-assignment-label">Kostengruppe</span>
+                      <div className={`color-select-wrapper ${!manualDraft.category && manualDraft.description ? 'missing-required' : ''}`} style={!manualDraft.category && manualDraft.description ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", height: "32px", minWidth: 0, display: "flex", alignItems: "center" } : (!manualDraft.category ? { border: "none", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", height: "32px", minWidth: 0, display: "flex", alignItems: "center" } : { ...buildColorInputStyle(activeCostGroups().find(g => g.name === manualDraft.category)?.color), height: "32px", minWidth: 0, display: "flex", alignItems: "center" })}>
+                        <select
+                          className="category-input cost-group-input"
+                          value={manualDraft.category || ""}
+                          onChange={(e) => setManualDraft((s) => ({ ...s, category: e.target.value }))}
+                          style={{ width: "100%", height: "100%", fontSize: "0.85rem" }}
+                        >
+                          <option value="">- Kostengruppe -</option>
+                          {activeCostGroups().map((group) => (
+                            <option key={group.id || group.name} value={group.name}>{group.name}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                    
-                    {/* Row 2: Cost Center */}
-                    <div className={`color-select-wrapper ${!manualDraft.accountId && manualDraft.description ? 'missing-required' : ''}`} style={!manualDraft.accountId && manualDraft.description ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", minHeight: "32px" } : (!manualDraft.accountId ? { border: "none", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", minHeight: "32px" } : {...buildColorInputStyle(costCenterOptions.find(cc => cc.id === manualDraft.accountId)?.color), minHeight: "32px"})}>
-                      <select
-                        className="category-input account-input"
-                        value={manualDraft.accountId || ""}
-                        onChange={(e) => setManualDraft((s) => ({ ...s, accountId: e.target.value }))}
-                        disabled={!accountCatalogReady || !costCenterOptions.length}
-                        title="Kostenträger"
-                      >
-                        <option value="">- Kostenträger -</option>
-                        {costCenterOptions.map((costCenter) => (
-                          <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
-                        ))}
-                      </select>
+
+                    <div className="item-assignment">
+                      <span className="item-assignment-label">Kostenträger</span>
+                      <div className={`color-select-wrapper ${!manualDraft.accountId && manualDraft.description ? 'missing-required' : ''}`} style={!manualDraft.accountId && manualDraft.description ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", height: "32px", minWidth: 0, display: "flex", alignItems: "center" } : (!manualDraft.accountId ? { border: "none", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", height: "32px", minWidth: 0, display: "flex", alignItems: "center" } : { ...buildColorInputStyle(costCenterOptions.find(cc => cc.id === manualDraft.accountId)?.color), height: "32px", minWidth: 0, display: "flex", alignItems: "center" })}>
+                        <select
+                          className="category-input account-input"
+                          value={manualDraft.accountId || ""}
+                          onChange={(e) => setManualDraft((s) => ({ ...s, accountId: e.target.value }))}
+                          disabled={!accountCatalogReady || !costCenterOptions.length}
+                          title="Kostenträger"
+                          style={{ width: "100%", height: "100%", fontSize: "0.85rem" }}
+                        >
+                          <option value="">- Kostenträger -</option>
+                          {costCenterOptions.map((costCenter) => (
+                            <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   </div>
                 </div>
