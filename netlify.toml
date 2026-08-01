@@ -1,6 +1,7 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  ignore = "if [ -z \"$COMMIT_REF\" ]; then exit 1; fi; if git log -1 --pretty=%B \"$COMMIT_REF\" | grep -qi '\\[deploy\\]'; then echo 'Deploy marker found.'; exit 1; fi; echo 'Skipping Netlify build (no [deploy] marker in commit message).'; exit 0"
 
 [build.environment]
   NODE_VERSION = "20"

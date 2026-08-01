@@ -3,6 +3,10 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./styles.css";
 
+if (typeof document !== "undefined") {
+  document.documentElement.lang = "de";
+}
+
 class RootErrorBoundary extends React.Component {
   constructor(props) {
     super(props);

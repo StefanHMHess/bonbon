@@ -1,5 +1,10 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
+import DatePicker, { registerLocale } from "react-datepicker";
+import { de } from "date-fns/locale";
 import { defaultHouseholdId, isSupabaseConfigured, supabase } from "./lib/supabase";
+import "react-datepicker/dist/react-datepicker.css";
+
+registerLocale("de", de);
 
 const euro = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
 const amountDE = new Intl.NumberFormat("de-DE", {
@@ -23,6 +28,7 @@ const EMERGENCY_ACCESS_VISIBLE_EMAIL = "he@wohnbau-hess.de";
 const MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY = "bonbox_magic_link_cooldown_until";
 const ONE_TIME_BYPASS_EMAIL = "nsteinweden@yahoo.com";
 const ONE_TIME_BYPASS_USED_STORAGE_KEY = "bonbox_one_time_bypass_used_nsteinweden";
+const RECEIPT_COMPLETED_IDS_STORAGE_KEY = "bonbox_receipt_completed_ids";
 const AUTH_REDIRECT_URL = import.meta.env.VITE_AUTH_REDIRECT_URL || "";
 const MAGIC_LINK_COOLDOWN_MS = 90 * 1000;
 const MAGIC_LINK_RATE_LIMIT_BACKOFF_MS = 60 * 60 * 1000;
@@ -38,17 +44,17 @@ const defaultCostGroups = [
     id: "grp-food",
     name: "Lebensmittel",
     color: "#059669",
-    keywords: ["aldi", "lidl", "rewe", "edeka", "netto", "supermarkt", "lebensmittel", "bÃ¤ckerei", "baeckerei"],
+    keywords: ["aldi", "lidl", "rewe", "edeka", "netto", "supermarkt", "lebensmittel", "bäckerei", "baeckerei"],
   },
   {
     id: "grp-restaurant",
     name: "Essen & Trinken",
     color: "#2DD4BF",
-    keywords: ["restaurant", "cafe", "cafÃ©", "bar", "pizza", "burger", "liefer", "imbiss"],
+    keywords: ["restaurant", "cafe", "café", "bar", "pizza", "burger", "liefer", "imbiss"],
   },
   {
     id: "grp-mobility",
-    name: "MobilitÃ¤t",
+    name: "Mobilität",
     color: "#06B6D4",
     keywords: ["tank", "shell", "aral", "uber", "taxi", "bahn", "db", "ticket", "park"],
   },
@@ -205,6 +211,46 @@ function parseReceiptDate(receipt) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function parseIsoDate(value) {
+  const raw = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+
+  const [year, month, day] = raw.split("-").map((part) => Number(part));
+  const parsed = new Date(year, month - 1, day);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatIsoDate(value) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "";
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getReceiptAssignmentStatus(receipt) {
+  const items = Array.isArray(receipt?.receipt_items) ? receipt.receipt_items : [];
+  let missingCategoryCount = 0;
+  let missingCostCenterCount = 0;
+  let missingEitherCount = 0;
+
+  for (const item of items) {
+    const hasCategory = Boolean(String(item?.category || "").trim());
+    const hasCostCenter = Boolean(String(item?.assigned_cost_center_id || "").trim());
+    if (!hasCategory) missingCategoryCount += 1;
+    if (!hasCostCenter) missingCostCenterCount += 1;
+    if (!hasCategory || !hasCostCenter) missingEitherCount += 1;
+  }
+
+  return {
+    itemCount: items.length,
+    missingCategoryCount,
+    missingCostCenterCount,
+    missingEitherCount,
+    isComplete: items.length === 0 || missingEitherCount === 0,
+  };
+}
+
 function normalizeText(text) {
   return String(text || "").toLowerCase();
 }
@@ -227,13 +273,13 @@ function inferCostGroupName(description, groups) {
     
     for (const keyword of keywords) {
       if (keyword && normalized.includes(normalizeText(keyword))) {
-        console.log(`[inferCostGroupName] âœ“ MATCH: "${keyword}" found in "${normalized}" â†’ group: "${group.name}"`);
+        console.log(`[inferCostGroupName] ✓ MATCH: "${keyword}" found in "${normalized}" → group: "${group.name}"`);
         return group.name;
       }
     }
   }
 
-  console.log(`[inferCostGroupName] âœ— NO MATCH for "${normalized}"`);
+  console.log(`[inferCostGroupName] ✗ NO MATCH for "${normalized}"`);
   return null;
 }
 
@@ -246,6 +292,13 @@ function parseKeywords(text) {
     .split(",")
     .map((x) => x.trim())
     .filter(Boolean);
+}
+
+function normalizeEmailInput(value) {
+  return String(value || "")
+    .replace(/\(at\)/gi, "@")
+    .replace(/\[at\]/gi, "@")
+    .replace(/\sat\s/gi, "@");
 }
 
 function formatAmountDE(value) {
@@ -415,7 +468,7 @@ function getReadableAuthErrorMessage(errorMessage, fallbackMessage) {
     normalized.includes("over_email_send_rate_limit") ||
     normalized.includes("limit exceeded")
   ) {
-    return "Supabase hat das E-Mail-Limit erreicht. Bitte spaeter erneut versuchen oder in Supabase/SMTP einen eigenen Mailversand aktivieren.";
+    return "Supabase hat das E-Mail-Limit erreicht. Bitte später erneut versuchen oder in Supabase/SMTP einen eigenen Mailversand aktivieren.";
   }
 
   return rawMessage || fallbackMessage;
@@ -467,16 +520,27 @@ function App() {
   const [manualDraft, setManualDraft] = useState(emptyDraft);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [selectedCostCenterForReceipt, setSelectedCostCenterForReceipt] = useState(null);
+  const [descriptionDrafts, setDescriptionDrafts] = useState({});
   const [amountDrafts, setAmountDrafts] = useState({});
   const [showCostGroupModal, setShowCostGroupModal] = useState(false);
   const [costGroupModalView, setCostGroupModalView] = useState("summary");
   const [showCostCenterModal, setShowCostCenterModal] = useState(false);
   const [costCenterDrafts, setCostCenterDrafts] = useState({});
   const [newCostCenter, setNewCostCenter] = useState({ name: "", color: "#18b6a3", sort_order: 100 });
-  const [newReceiptCostCenterId, setNewReceiptCostCenterId] = useState(null); // KostentrÃ¤ger (wer trÃ¤gt die Kosten)
-  const [newPaymentAccountId, setNewPaymentAccountId] = useState(null); // Zahlungskonto fÃ¼r neuen Beleg
+  const [newReceiptCostCenterId, setNewReceiptCostCenterId] = useState(null); // Kostenträger (wer trägt die Kosten)
+  const [newPaymentAccountId, setNewPaymentAccountId] = useState(null); // Zahlungskonto für neuen Beleg
   const [blankReceiptPreset, setBlankReceiptPreset] = useState({ receiptId: null, costCenterId: null });
   const [receiptMerchantDraft, setReceiptMerchantDraft] = useState("");
+  const [receiptDateDraft, setReceiptDateDraft] = useState("");
+  const [completedReceiptIds, setCompletedReceiptIds] = useState(() => {
+    try {
+      const raw = safeStorageGet(RECEIPT_COMPLETED_IDS_STORAGE_KEY, "[]");
+      const parsed = JSON.parse(raw);
+      return new Set(Array.isArray(parsed) ? parsed.map((x) => String(x)) : []);
+    } catch {
+      return new Set();
+    }
+  });
   const [authEmail, setAuthEmail] = useState(() => {
     return safeStorageGet(AUTH_EMAIL_STORAGE_KEY, "");
   });
@@ -698,7 +762,7 @@ function App() {
     const groups = activeCostGroups();
     const colorByName = new Map(groups.map((group) => [group.name, group.color]));
     const year = new Date().getFullYear();
-    const monthLabels = ["Jan", "Feb", "MÃ¤r", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+    const monthLabels = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
     const monthlyGroupTotals = Array.from({ length: 12 }, () => new Map());
     const monthlyTotals = Array(12).fill(0);
     const yearlyGroupTotals = new Map();
@@ -811,7 +875,7 @@ function App() {
       });
   }, [receipts, familyAccounts, itemAllocations]);
 
-  // Totals by Cost Centers (KostentrÃ¤ger) - new system using assigned_cost_center_id
+  // Totals by Cost Centers (Kostenträger) - new system using assigned_cost_center_id
   const costCenterTotals = useMemo(() => {
     const costCenterById = new Map(costCenters.map((cc) => [cc.id, cc]));
     const totals = new Map();
@@ -834,7 +898,7 @@ function App() {
         const costCenter = costCenterById.get(costCenterId);
         return {
           id: costCenterId,
-          name: costCenter?.name || "Unbekannter KostentrÃ¤ger",
+          name: costCenter?.name || "Unbekannter Kostenträger",
           color: costCenter?.color || "#456279",
           total,
         };
@@ -934,7 +998,7 @@ function App() {
     return { rows, overall };
   }, [receipts, familyAccounts, itemAllocations]);
 
-  // Cost Centers (KostentrÃ¤ger - wer trÃ¤gt die Kosten?)
+  // Cost Centers (Kostenträger - wer trägt die Kosten?)
   const costCenterOptions = useMemo(() => {
     let next = [...costCenters];
     if (!next.length && costCenters.length === 0) {
@@ -1002,6 +1066,42 @@ function App() {
     safeStorageSet(AUTH_EMAIL_STORAGE_KEY, String(authEmail || "").trim().toLowerCase());
   }, [authEmail]);
 
+  useEffect(() => {
+    safeStorageSet(
+      RECEIPT_COMPLETED_IDS_STORAGE_KEY,
+      JSON.stringify(Array.from(completedReceiptIds))
+    );
+  }, [completedReceiptIds]);
+
+  useEffect(() => {
+    if (!receipts.length || !completedReceiptIds.size) return;
+
+    const receiptById = new Map(receipts.map((receipt) => [String(receipt.id), receipt]));
+    let changed = false;
+
+    const next = new Set(
+      Array.from(completedReceiptIds).filter((id) => {
+        const receipt = receiptById.get(String(id));
+        if (!receipt) {
+          changed = true;
+          return false;
+        }
+
+        const status = getReceiptAssignmentStatus(receipt);
+        if (!status.isComplete) {
+          changed = true;
+          return false;
+        }
+
+        return true;
+      })
+    );
+
+    if (changed) {
+      setCompletedReceiptIds(next);
+    }
+  }, [receipts, completedReceiptIds]);
+
   async function getExchangeRateToEur(currency) {
     const normalized = normalizeCurrencyCode(currency);
     if (normalized === "EUR") return 1;
@@ -1043,7 +1143,7 @@ function App() {
     }
 
     if (!error) {
-      setError("Wechselkurs konnte nicht geladen werden. Bitte spÃ¤ter erneut versuchen.");
+      setError("Wechselkurs konnte nicht geladen werden. Bitte später erneut versuchen.");
     }
     return 1;
   }
@@ -1062,7 +1162,7 @@ function App() {
     const currency = normalizeCurrencyCode(item?.currency || "EUR");
     if (currency === "EUR") return euro.format(Number(item?.amount || 0));
 
-    return `${amountDE.format(getItemOriginalAmount(item))} ${currency} â‰ˆ ${euro.format(Number(item?.amount || 0))}`;
+    return `${amountDE.format(getItemOriginalAmount(item))} ${currency} ≈ ${euro.format(Number(item?.amount || 0))}`;
   }
 
   async function recalculateReceiptTotal(receiptId) {
@@ -1103,7 +1203,7 @@ function App() {
     if (deleteResult.error) {
       return {
         ok: false,
-        message: `${rpcResult.error.message}. Bitte supabase_receipt_cleanup.sql ausfÃ¼hren.`,
+        message: `${rpcResult.error.message}. Bitte supabase_receipt_cleanup.sql ausführen.`,
       };
     }
 
@@ -1117,7 +1217,7 @@ function App() {
     }
 
     if ((verify.count || 0) > 0) {
-      return { ok: false, message: "Vorhandene Positionen konnten nicht entfernt werden. Bitte supabase_receipt_cleanup.sql ausfÃ¼hren." };
+      return { ok: false, message: "Vorhandene Positionen konnten nicht entfernt werden. Bitte supabase_receipt_cleanup.sql ausführen." };
     }
 
     return { ok: true };
@@ -1137,7 +1237,7 @@ function App() {
     if (deleteResult.error) {
       return {
         ok: false,
-        message: `${rpcResult.error.message}. Bitte supabase_receipt_cleanup.sql ausfÃ¼hren.`,
+        message: `${rpcResult.error.message}. Bitte supabase_receipt_cleanup.sql ausführen.`,
       };
     }
 
@@ -1378,9 +1478,9 @@ function App() {
       return;
     }
 
-    const value = String(authEmail || "").trim().toLowerCase();
+    const value = normalizeEmailInput(authEmail).trim().toLowerCase();
     if (!value || !value.includes("@")) {
-      setError("Bitte eine gÃ¼ltige E-Mail-Adresse eingeben.");
+      setError("Bitte eine gültige E-Mail-Adresse eingeben.");
       return;
     }
 
@@ -1407,7 +1507,7 @@ function App() {
         setMagicLinkNow(Date.now());
         setMagicLinkCooldownUntil(until);
         safeStorageSet(MAGIC_LINK_COOLDOWN_UNTIL_STORAGE_KEY, until);
-        setError("E-Mail-Limit bei Supabase erreicht. Ohne Custom SMTP sind oft nur wenige Mails pro Stunde erlaubt. Bitte spÃ¤ter erneut versuchen oder SMTP aktivieren.");
+        setError("E-Mail-Limit bei Supabase erreicht. Ohne Custom SMTP sind oft nur wenige Mails pro Stunde erlaubt. Bitte später erneut versuchen oder SMTP aktivieren.");
       } else {
         setError(rawMessage);
       }
@@ -1433,11 +1533,11 @@ function App() {
   async function signInWithPassword() {
     if (!supabase) return;
 
-    const email = String(authEmail || "").trim().toLowerCase();
+    const email = normalizeEmailInput(authEmail).trim().toLowerCase();
     const password = String(authPassword || "");
 
     if (!email || !email.includes("@")) {
-      setError("Bitte eine gÃ¼ltige E-Mail-Adresse eingeben.");
+      setError("Bitte eine gültige E-Mail-Adresse eingeben.");
       return;
     }
 
@@ -1469,12 +1569,12 @@ function App() {
   async function signUpWithPassword() {
     if (!supabase) return;
 
-    const email = String(authEmail || "").trim().toLowerCase();
+    const email = normalizeEmailInput(authEmail).trim().toLowerCase();
     const password = String(authPassword || "");
     const redirectUrl = getMagicLinkRedirectUrl();
 
     if (!email || !email.includes("@")) {
-      setError("Bitte eine gÃ¼ltige E-Mail-Adresse eingeben.");
+      setError("Bitte eine gültige E-Mail-Adresse eingeben.");
       return;
     }
 
@@ -1484,7 +1584,7 @@ function App() {
     }
 
     if (!AUTH_REDIRECT_URL && isLocalhostUrl(redirectUrl)) {
-      setError("Bestaetigungs-Redirect ist lokal (localhost). Bitte VITE_AUTH_REDIRECT_URL auf die Netlify-URL setzen, dann erneut senden.");
+      setError("Bestätigungs-Redirect ist lokal (localhost). Bitte VITE_AUTH_REDIRECT_URL auf die Netlify-URL setzen, dann erneut senden.");
       return;
     }
 
@@ -1510,7 +1610,7 @@ function App() {
     const needsEmailConfirmation = !data?.session;
     setSuccess(
       needsEmailConfirmation
-        ? "Zugang angelegt. Bitte die BestÃ¤tigungs-E-Mail Ã¶ffnen und dich danach mit Passwort anmelden."
+        ? "Zugang angelegt. Bitte die Bestätigungs-E-Mail öffnen und dich danach mit Passwort anmelden."
         : "Zugang angelegt. Falls noch keine Freigabe besteht, muss ein Admin dich einmal freischalten."
     );
     setAuthPassword("");
@@ -1519,9 +1619,9 @@ function App() {
   async function sendPasswordReset() {
     if (!supabase) return;
 
-    const email = String(authEmail || "").trim().toLowerCase();
+    const email = normalizeEmailInput(authEmail).trim().toLowerCase();
     if (!email || !email.includes("@")) {
-      setError("Bitte eine gÃ¼ltige E-Mail-Adresse eingeben.");
+      setError("Bitte eine gültige E-Mail-Adresse eingeben.");
       return;
     }
 
@@ -1546,7 +1646,7 @@ function App() {
       return;
     }
 
-    setSuccess("E-Mail zum Setzen oder ZurÃ¼cksetzen des Passworts wurde gesendet.");
+    setSuccess("E-Mail zum Setzen oder Zurücksetzen des Passworts wurde gesendet.");
   }
 
   function activateEmergencyAccess() {
@@ -1572,9 +1672,9 @@ function App() {
   async function verifyApprovedEmail(value, silent = false) {
     if (!supabase) return false;
 
-    const email = String(value || authEmail || "").trim().toLowerCase();
+    const email = normalizeEmailInput(value || authEmail).trim().toLowerCase();
     if (!email || !email.includes("@")) {
-      if (!silent) setError("Bitte eine gÃ¼ltige E-Mail-Adresse eingeben.");
+      if (!silent) setError("Bitte eine gültige E-Mail-Adresse eingeben.");
       return false;
     }
 
@@ -1802,14 +1902,14 @@ function App() {
 
     if (rpcError) {
       setBootstrapBusy(false);
-      setError(`${rpcError.message}. Bitte supabase_user_access.sql erneut in Supabase ausfÃ¼hren.`);
+      setError(`${rpcError.message}. Bitte supabase_user_access.sql erneut in Supabase ausführen.`);
       return;
     }
 
     setBootstrapBusy(false);
 
     if (!data) {
-      setError("Bootstrap nicht mÃ¶glich: Es existiert bereits ein freigegebener Admin.");
+      setError("Bootstrap nicht möglich: Es existiert bereits ein freigegebener Admin.");
       return;
     }
 
@@ -1882,7 +1982,7 @@ function App() {
     }
     
     // Debug receipt items
-    console.log("ðŸ” DEBUG loadReceipts - Receipt Items:");
+    console.log("🔍 DEBUG loadReceipts - Receipt Items:");
     (data || []).forEach((receipt, i) => {
       const itemsWithAlloc = receipt.receipt_items?.filter(item => {
         // Need to check after allocations load, so just show count
@@ -1943,7 +2043,7 @@ function App() {
     if (accountError) {
       setFamilyAccounts([]);
       setAccountCatalogReady(false);
-      setAccountCatalogMessage(accountError.message || "KostentrÃ¤ger-Tabelle ist noch nicht eingerichtet.");
+      setAccountCatalogMessage(accountError.message || "Kostenträger-Tabelle ist noch nicht eingerichtet.");
       return;
     }
 
@@ -1978,7 +2078,7 @@ function App() {
       return;
     }
 
-    // Transform names to KostentrÃ¤ger format (Familie -> Familienkosten, etc.)
+    // Transform names to Kostenträger format (Familie -> Familienkosten, etc.)
     const next = (data || []).map(cc => ({
       ...cc,
       name: cc.name === "Familie" ? "Familienkosten" 
@@ -2011,7 +2111,7 @@ function App() {
   async function saveCostCenter(centerId) {
     if (!centerId) return;
     if (!costCenterDrafts[centerId]?.name?.trim()) {
-      setError("KostentrÃ¤ger braucht einen Namen.");
+      setError("Kostenträger braucht einen Namen.");
       return;
     }
 
@@ -2028,7 +2128,7 @@ function App() {
       setError("Fehler beim Speichern: " + error.message);
       return;
     }
-    setSuccess("KostentrÃ¤ger gespeichert.");
+    setSuccess("Kostenträger gespeichert.");
     await loadCostCenters();
   }
 
@@ -2054,7 +2154,7 @@ function App() {
 
   async function addNewCostCenter() {
     if (!newCostCenter.name?.trim()) {
-      setError("Bitte Namen fÃ¼r neuen KostentrÃ¤ger eingeben.");
+      setError("Bitte Namen für neuen Kostenträger eingeben.");
       return;
     }
 
@@ -2070,10 +2170,10 @@ function App() {
 
     setBusy(false);
     if (error) {
-      setError("Fehler beim HinzufÃ¼gen: " + error.message);
+      setError("Fehler beim Hinzufügen: " + error.message);
       return;
     }
-    setSuccess("KostentrÃ¤ger hinzugefÃ¼gt.");
+    setSuccess("Kostenträger hinzugefügt.");
     setNewCostCenter({ name: "", color: "#18b6a3", sort_order: 100 });
     await loadCostCenters();
   }
@@ -2094,7 +2194,7 @@ function App() {
       return;
     }
 
-    console.log("ðŸ” DEBUG loadItemAllocations:");
+    console.log("🔍 DEBUG loadItemAllocations:");
     console.log("  Requested itemIds:", itemIds);
     console.log("  Loaded allocations:", data);
     if (data?.length) {
@@ -2162,11 +2262,11 @@ function App() {
 
   async function fixWrongAllocations() {
     // Stefan's 6 items should be allocated to Familienkonto
-    // Item IDs from Stefan's receipts (BÃ¤cker & Netto)
+    // Item IDs from Stefan's receipts (Bäcker & Netto)
     const stefanItemIds = [
       '9e7cc596-fa88-445d-8498-26d820adee1c', // KREPPEL
       'c83fea1e-4534-4ea7-9059-b93adea19fdd', // Pflaumenkreppel
-      '30afd55b-4412-46d0-984b-8ee0d517430d', // EierlikÃ¶rkreppel
+      '30afd55b-4412-46d0-984b-8ee0d517430d', // Eierlikörkreppel
       'a80102fc-c53b-493e-8948-35533d1663b4', // Kreppel mit Nutella
       'c2f94946-3c88-431d-8c18-3f4c77813fa8', // Vanillekreppel
       'e2560560-e60a-41f8-b285-87b0bcd12af0', // Papiertasche
@@ -2197,7 +2297,7 @@ function App() {
       console.error("Delete error:", deleteError);
     }
     
-    // Then create correct allocations: Stefan items â†’ Familienkonto
+    // Then create correct allocations: Stefan items → Familienkonto
     const familienkontoId = defaultFamilyAccount.id;
     const allocationRows = stefanItemIds.map((itemId) => ({
       receipt_item_id: itemId,
@@ -2214,7 +2314,7 @@ function App() {
       return;
     }
     
-    setSuccess("âœ“ Allocations repariert: Stefans Items gehen zu Familienkonto!");
+    setSuccess("✓ Allocations repariert: Stefans Items gehen zu Familienkonto!");
     await loadItemAllocations(receipts.flatMap((r) => (r.receipt_items || []).map((i) => i.id)).filter(Boolean));
   }
 
@@ -2227,14 +2327,14 @@ function App() {
       console.log("Assigning cost center:", { itemId: item.id, costCenterId, patchData });
       
       await patchItem(item.id, patchData);
-      setSuccess("KostentrÃ¤ger aktualisiert.");
+      setSuccess("Kostenträger aktualisiert.");
     } catch (err) {
       const errMsg = String(err?.message || err);
       console.error("assignItemToCostCenter error:", err, errMsg);
       
       if (errMsg.includes("assigned_cost_center_id") || errMsg.includes("does not exist")) {
         setShowSetupModal(true);
-        setError("âš ï¸ Die KostentrÃ¤ger-Spalte muss erst in der Datenbank erstellt werden.");
+        setError("⚠️ Die Kostenträger-Spalte muss erst in der Datenbank erstellt werden.");
       } else {
         setError(`Fehler beim Speichern: ${errMsg}`);
       }
@@ -2244,7 +2344,7 @@ function App() {
   async function assignItemToAccount(item, accountId) {
     const ok = await setSingleItemAllocation(item.id, accountId, Number(item.amount || 0));
     if (!ok) return;
-    setSuccess("KostentrÃ¤ger aktualisiert.");
+    setSuccess("Kostenträger aktualisiert.");
   }
 
   function updateCostGroupDraft(groupId, key, value) {
@@ -2324,7 +2424,7 @@ function App() {
 
   async function addCostGroup() {
     if (!newCostGroup.name.trim()) {
-      setError("Bitte Name fÃ¼r die neue Kostengruppe eingeben.");
+      setError("Bitte Name für die neue Kostengruppe eingeben.");
       return;
     }
 
@@ -2353,7 +2453,7 @@ function App() {
       sortOrder: 100,
     });
 
-    setSuccess("Kostengruppe hinzugefÃ¼gt.");
+    setSuccess("Kostengruppe hinzugefügt.");
     await loadCostGroups();
     await loadReceipts();
   }
@@ -2361,7 +2461,7 @@ function App() {
   async function saveFamilyAccount(accountId) {
     const draft = accountDrafts[accountId];
     if (!draft?.name?.trim()) {
-      setError("KostentrÃ¤ger braucht einen Namen.");
+      setError("Kostenträger braucht einen Namen.");
       return;
     }
 
@@ -2386,7 +2486,7 @@ function App() {
       return;
     }
 
-    setSuccess("KostentrÃ¤ger gespeichert.");
+    setSuccess("Kostenträger gespeichert.");
     await loadFamilyAccounts();
   }
 
@@ -2448,7 +2548,7 @@ function App() {
       accountType: "person",
       sortOrder: 100,
     });
-    setSuccess("KostentrÃ¤ger hinzugefÃ¼gt.");
+    setSuccess("Kostenträger hinzugefügt.");
     await loadFamilyAccounts();
   }
 
@@ -2469,17 +2569,17 @@ function App() {
     }
 
     const parsed = aiResult.data || {};
-    console.error("ðŸš¨ðŸš¨ðŸš¨ PARSED DATA ðŸš¨ðŸš¨ðŸš¨", { merchant: parsed.merchant, itemCount: parsed.items?.length });
+    console.error("🚨🚨🚨 PARSED DATA 🚨🚨🚨", { merchant: parsed.merchant, itemCount: parsed.items?.length });
     
     const rawCurrency = normalizeCurrencyCode(parsed.currency || "EUR");
     const exchangeRate = await getExchangeRateToEur(rawCurrency);
     const items = Array.isArray(parsed.items) ? parsed.items : [];
     
-    console.error("ðŸš¨ MERCHANT CHECK - Merchant: '" + parsed.merchant + "' activeCostGroups:", activeCostGroups().length);
+    console.error("🚨 MERCHANT CHECK - Merchant: '" + parsed.merchant + "' activeCostGroups:", activeCostGroups().length);
     
     // Determine cost group based on merchant name
     const merchantCategory = inferCostGroupName(parsed.merchant || "", activeCostGroups());
-    console.error("ðŸš¨ MERCHANT CATEGORY RESULT: '" + merchantCategory + "'");
+    console.error("🚨 MERCHANT CATEGORY RESULT: '" + merchantCategory + "'");
     
     const convertedItems = items.map((item) => {
       const originalAmount = roundMoney(item.amount || 0);
@@ -2682,7 +2782,7 @@ function App() {
       setNewReceiptCostCenterId(null);
       setNewPaymentAccountId(null);
 
-      setSuccess("Beleg wurde analysiert und ins Haushaltsbuch Ã¼bernommen.");
+      setSuccess("Beleg wurde analysiert und ins Haushaltsbuch übernommen.");
       await loadReceipts();
       setSelectedReceipt(receiptId);
     } catch (err) {
@@ -2779,7 +2879,7 @@ function App() {
       return;
     }
 
-    setSuccess("Blankobeleg erstellt. Positionen kÃ¶nnen jetzt manuell ergÃ¤nzt werden.");
+    setSuccess("Blankobeleg erstellt. Positionen können jetzt manuell ergänzt werden.");
     await loadReceipts();
     setBlankReceiptPreset({ receiptId: data?.id || null, costCenterId: carryCostCenterId });
     setSelectedReceipt(data?.id || null);
@@ -2820,6 +2920,20 @@ function App() {
       setError("Bitte einen gültigen Betrag eingeben (z.B. 4,50).");
       return;
     }
+
+    const categoryForItem = manualDraft.category || inferCostGroupName(manualDraft.description, groups);
+    const costCenterToAssign = manualDraft.accountId || selectedCostCenterForReceipt;
+
+    if (!categoryForItem) {
+      setError("Bitte für die Position eine Kostengruppe auswählen.");
+      return;
+    }
+
+    if (!costCenterToAssign) {
+      setError("Bitte für die Position einen Kostenträger auswählen.");
+      return;
+    }
+
     const originalAmount = roundMoney(parsedOriginalAmount || 0);
     const amount = roundMoney(originalAmount * exchangeRate);
 
@@ -2831,7 +2945,7 @@ function App() {
       amount,
       currency,
       exchange_rate: exchangeRate,
-      category: manualDraft.category || inferCostGroupName(manualDraft.description, groups),
+      category: categoryForItem,
     };
 
     let insertError;
@@ -2844,7 +2958,7 @@ function App() {
         description: manualDraft.description || "Neue Position",
         quantity: Number(manualDraft.quantity || 1),
         amount,
-        category: manualDraft.category || inferCostGroupName(manualDraft.description, groups),
+        category: categoryForItem,
       }, false)).select();
     }
 
@@ -2855,7 +2969,6 @@ function App() {
     }
 
     const insertedItem = insertResponse.data?.[0];
-    const costCenterToAssign = manualDraft.accountId || selectedCostCenterForReceipt;
     if (insertedItem?.id && costCenterToAssign) {
       await assignItemToCostCenter(insertedItem, costCenterToAssign);
     }
@@ -2880,17 +2993,17 @@ function App() {
       // Check if this is a column-missing error
       if (errMsg.includes("assigned_cost_center_id") || errMsg.includes("does not exist")) {
         setShowSetupBanner(true);  // Show setup banner
-        setError("âš ï¸ Die KostentrÃ¤ger-Spalte muss erst in der Datenbank erstellt werden.");
+        setError("⚠️ Die Kostenträger-Spalte muss erst in der Datenbank erstellt werden.");
       } else {
         setError(`Update-Fehler: ${errMsg}`);
       }
-      return;
+      return false;
     }
 
     if (!data || data.length === 0) {
-      setError("Keine Zeilen aktualisiert - mÃ¶glicherweise existiert das Item nicht");
+      setError("Keine Zeilen aktualisiert - möglicherweise existiert das Item nicht");
       console.warn("patchItem: No rows affected", { itemId, patch });
-      return;
+      return false;
     }
 
     if (receiptId) {
@@ -2898,6 +3011,7 @@ function App() {
     }
 
     await loadReceipts();
+    return true;
   }
 
   async function patchReceipt(receiptId, patch) {
@@ -2927,6 +3041,52 @@ function App() {
     if (nextMerchant === currentMerchant) return;
 
     await patchReceipt(currentReceipt.id, { merchant: nextMerchant });
+  }
+
+  async function commitReceiptDate(nextValue = receiptDateDraft) {
+    if (!currentReceipt?.id) return;
+
+    const nextDate = String(nextValue || "").trim();
+    const currentDate = String(currentReceipt.receipt_date || "").trim();
+    if (nextDate === currentDate) return;
+
+    if (!nextDate) {
+      setError("Bitte ein gültiges Datum wählen.");
+      setReceiptDateDraft(currentDate);
+      return;
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
+      setError("Bitte ein gültiges Datum im Format JJJJ-MM-TT eingeben.");
+      setReceiptDateDraft(currentDate);
+      return;
+    }
+
+    await patchReceipt(currentReceipt.id, { receipt_date: nextDate });
+  }
+
+  function completeCurrentReceiptWithCheck() {
+    if (!currentReceipt?.id) return;
+
+    const status = getReceiptAssignmentStatus(currentReceipt);
+    if (!status.itemCount) {
+      setError("Abschluss nicht möglich: Der Beleg hat noch keine Positionen.");
+      return;
+    }
+
+    if (!status.isComplete) {
+      setError(
+        `Abschluss nicht möglich: ${status.missingEitherCount} Positionen sind unvollständig (${status.missingCategoryCount} ohne Kostengruppe, ${status.missingCostCenterCount} ohne Kostenträger).`
+      );
+      return;
+    }
+
+    setCompletedReceiptIds((prev) => {
+      const next = new Set(prev);
+      next.add(String(currentReceipt.id));
+      return next;
+    });
+    setSuccess("Beleg abgeschlossen: Alle Positionen sind vollständig zugeordnet.");
   }
 
   async function toggleIgnoreItem(item) {
@@ -2988,6 +3148,38 @@ function App() {
     }));
   }
 
+  function updateDescriptionDraft(itemId, value) {
+    setDescriptionDrafts((prev) => ({
+      ...prev,
+      [itemId]: value,
+    }));
+  }
+
+  async function commitDescriptionDraft(item) {
+    if (!Object.prototype.hasOwnProperty.call(descriptionDrafts, item.id)) return;
+
+    const nextDescription = String(descriptionDrafts[item.id] ?? "");
+    const currentDescription = String(item.description || "");
+
+    if (nextDescription === currentDescription) {
+      setDescriptionDrafts((prev) => {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      });
+      return;
+    }
+
+    const ok = await patchItem(item.id, { description: nextDescription });
+    if (!ok) return;
+
+    setDescriptionDrafts((prev) => {
+      const next = { ...prev };
+      delete next[item.id];
+      return next;
+    });
+  }
+
   async function commitAmountDraft(item) {
     if (!Object.prototype.hasOwnProperty.call(amountDrafts, item.id)) return;
 
@@ -2995,7 +3187,7 @@ function App() {
     const parsed = parseAmountDE(rawValue);
 
     if (parsed === null) {
-      setError("Bitte einen gÃ¼ltigen Betrag eingeben, z. B. 1.234,56.");
+      setError("Bitte einen gültigen Betrag eingeben, z. B. 1.234,56.");
       return;
     }
 
@@ -3097,7 +3289,7 @@ function App() {
     const items = receipt?.receipt_items || [];
     
     if (!items.length || !items[0]?.assigned_cost_center_id) {
-      setError("Die erste Position hat keinen KostentrÃ¤ger. Bitte erst zuweisen.");
+      setError("Die erste Position hat keinen Kostenträger. Bitte erst zuweisen.");
       return;
     }
 
@@ -3121,7 +3313,7 @@ function App() {
     }
 
     setBusy(false);
-    setSuccess("KostentrÃ¤ger auf alle Positionen Ã¼bertragen.");
+    setSuccess("Kostenträger auf alle Positionen übertragen.");
     await loadReceipts();
   }
 
@@ -3149,7 +3341,7 @@ function App() {
     }
 
     setBusy(false);
-    setSuccess("KostentrÃ¤ger fÃ¼r alle Positionen aktualisiert.");
+    setSuccess("Kostenträger für alle Positionen aktualisiert.");
     await loadReceipts();
   }
 
@@ -3252,7 +3444,7 @@ function App() {
       }
 
       setBusy(false);
-      setSuccess(`âœ“ Ausgleichszahlung "${debtorAccount.name} â†’ ${creditorAccount.name}: ${euro.format(amount)}" erstellt!`);
+      setSuccess(`✓ Ausgleichszahlung "${debtorAccount.name} → ${creditorAccount.name}: ${euro.format(amount)}" erstellt!`);
       await loadReceipts();
       setSelectedReceipt(debtorReceiptId);
     } catch (err) {
@@ -3316,7 +3508,7 @@ function App() {
     setPreviewBusy(false);
 
     if (signError || !data?.signedUrl) {
-      setError(signError?.message || "Beleg konnte nicht geÃ¶ffnet werden.");
+      setError(signError?.message || "Beleg konnte nicht geöffnet werden.");
       return;
     }
 
@@ -3324,7 +3516,7 @@ function App() {
       const isPdf = receipt.image_path.toLowerCase().endsWith(".pdf");
       
       if (isPdf) {
-        // PDFs: mit Google Docs Viewer Ã¶ffnen
+        // PDFs: mit Google Docs Viewer öffnen
         const encodedUrl = encodeURIComponent(data.signedUrl);
         const googleViewerUrl = `https://docs.google.com/gview?url=${encodedUrl}&embedded=true`;
         // iOS: target="_blank" in window.open verwenden
@@ -3334,7 +3526,7 @@ function App() {
           window.location.href = googleViewerUrl;
         }
       } else {
-        // Bilder: direkt Ã¶ffnen
+        // Bilder: direkt öffnen
         const win = window.open(data.signedUrl, "_blank", "noopener");
         if (!win) {
           // Fallback wenn window.open blockiert
@@ -3342,15 +3534,21 @@ function App() {
         }
       }
     } catch (err) {
-      setError(err.message || "Beleg konnte nicht geÃ¶ffnet werden.");
+      setError(err.message || "Beleg konnte nicht geöffnet werden.");
     }
   }
 
   const currentReceipt = receipts.find((r) => r.id === selectedReceipt) || null;
+  const isCurrentReceiptCompleted = Boolean(currentReceipt?.id) && completedReceiptIds.has(String(currentReceipt.id));
+  const currentReceiptAssignmentStatus = useMemo(
+    () => getReceiptAssignmentStatus(currentReceipt),
+    [currentReceipt]
+  );
 
   useEffect(() => {
     setReceiptMerchantDraft(currentReceipt?.merchant || "");
-  }, [currentReceipt?.id, currentReceipt?.merchant]);
+    setReceiptDateDraft(currentReceipt?.receipt_date || "");
+  }, [currentReceipt?.id, currentReceipt?.merchant, currentReceipt?.receipt_date]);
 
   if (authLoading) {
     return (
@@ -3388,7 +3586,7 @@ function App() {
             type="email"
             placeholder="name@beispiel.de"
             value={authEmail}
-            onChange={(e) => setAuthEmail(e.target.value)}
+            onChange={(e) => setAuthEmail(normalizeEmailInput(e.target.value))}
           />
           <input
             type="password"
@@ -3831,12 +4029,12 @@ function App() {
 
                 {!costGroupCatalogReady && (
                   <p className="hint error">
-                    Katalog-Tabelle noch nicht verfÃ¼gbar: {costGroupCatalogMessage}
+                    Katalog-Tabelle noch nicht verfügbar: {costGroupCatalogMessage}
                   </p>
                 )}
 
                 {costGroupCatalogReady && !costGroups.length && (
-                  <p className="hint">Noch keine Kostengruppen angelegt. FÃ¼ge unten eine hinzu.</p>
+                  <p className="hint">Noch keine Kostengruppen angelegt. Füge unten eine hinzu.</p>
                 )}
 
                 {costGroupCatalogReady && (
@@ -4170,8 +4368,8 @@ function App() {
       {error && <p className="hint error">{error}</p>}
       {success && <p className="hint success">{success}</p>}
 
-      <section className="grid two workflow-stack">
-        <article className="panel">
+      <section className="grid two workflow-stack split-scroll-layout">
+        <article className="panel split-scroll-panel">
           <div className={`receipts-sticky-palette${collapsedSections.has("receipts") ? " is-collapsed" : ""}`}>
             <div className={`section-header-with-button${collapsedSections.has("receipts") ? " is-collapsed" : ""}`} style={{ paddingBottom: "0" }}>
               <button
@@ -4303,6 +4501,7 @@ function App() {
             )}
           </div>
 
+          <div className="panel-scroll-body">
           {!collapsedSections.has("receipts") && (
             <>
           
@@ -4359,6 +4558,8 @@ function App() {
           
           <div className="receipt-list">
             {filteredReceipts.map((receipt) => {
+              const assignmentStatus = getReceiptAssignmentStatus(receipt);
+              const isReceiptCompleted = completedReceiptIds.has(String(receipt.id));
               const paymentAccount = paymentAccountOptions.find((a) => a.id === receipt.payment_account_id);
               const paymentAccountColor = paymentAccount?.color;
               const paymentAccountName = paymentAccount?.name;
@@ -4399,6 +4600,16 @@ function App() {
                   <small>
                     {formatReceiptDateTime(receipt)}{receipt.currency && receipt.currency !== "EUR" ? ` · ${receipt.currency}` : ""}
                   </small>
+                  {isReceiptCompleted && (
+                    <span className="receipt-complete-badge" title="Beleg abgeschlossen">
+                      ✓ Abgeschlossen
+                    </span>
+                  )}
+                  {!assignmentStatus.isComplete && assignmentStatus.itemCount > 0 && (
+                    <span className="receipt-warning-badge" title="Nicht alle Positionen sind vollständig zugeordnet">
+                      ⚠ Unvollständig
+                    </span>
+                  )}
                   {receipt.image_path?.toLowerCase().endsWith(".pdf") && <span className="receipt-pdf-badge">PDF</span>}
                 </div>
                 <div className="receipt-amounts">
@@ -4417,9 +4628,10 @@ function App() {
           )}
             </>
           )}
+          </div>
         </article>
 
-        <article className="panel">
+        <article className="panel split-scroll-panel">
           <div className={`section-header-with-button${collapsedSections.has("receipt-items") ? " is-collapsed" : ""}`} style={{ position: "sticky", top: 0, zIndex: 21, background: "#f8fffd", padding: "6px 0 8px", borderBottom: "1px solid rgba(16, 36, 62, 0.04)", boxShadow: "none" }}>
             <button
               onClick={() => toggleSection("receipt-items")}
@@ -4439,6 +4651,7 @@ function App() {
             </button>
             <h2 style={{ margin: 0 }}>Positionen Beleg</h2>
           </div>
+          <div className="panel-scroll-body">
           {!collapsedSections.has("receipt-items") && currentReceipt && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "12px", alignItems: "flex-start", marginBottom: "12px" }}>
               <div className="receipt-info" style={{ margin: 0 }}>
@@ -4458,7 +4671,25 @@ function App() {
                   disabled={busy}
                   style={{ marginBottom: "4px" }}
                 />
-                <small>{formatReceiptDateTime(currentReceipt)}</small>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                  <DatePicker
+                    selected={parseIsoDate(receiptDateDraft)}
+                    onChange={(date) => {
+                      const nextIsoDate = formatIsoDate(date);
+                      setReceiptDateDraft(nextIsoDate);
+                      void commitReceiptDate(nextIsoDate);
+                    }}
+                    onBlur={() => { void commitReceiptDate(); }}
+                    onCalendarClose={() => { void commitReceiptDate(); }}
+                    disabled={busy}
+                    locale="de"
+                    dateFormat="dd.MM.yyyy"
+                    placeholderText="TT.MM.JJJJ"
+                    className="receipt-date-input"
+                    title="Belegdatum"
+                  />
+                  <small>{formatReceiptDateTime(currentReceipt)}</small>
+                </div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                 <button
@@ -4467,18 +4698,37 @@ function App() {
                   onClick={() => autoAssignCategories(currentReceipt)}
                   style={{ padding: "6px 8px", fontSize: "0.85rem" }}
                 >
-                  Kostengruppen zuordnen
+                  Kostengruppe übernehmen
                 </button>
                 <button
                   className="btn secondary"
                   disabled={busy || !currentReceipt?.receipt_items?.length}
                   onClick={() => transferCostCenterToAll(currentReceipt)}
                   title="Kostenträger der ersten Position auf alle übertragen"
+                  style={{ padding: "6px 8px", fontSize: "0.85rem" }}
                 >
                   Kostenträger übernehmen
                 </button>
+                {!currentReceiptAssignmentStatus.isComplete && (
+                  <button
+                    className="btn secondary"
+                    disabled={busy || !currentReceipt?.receipt_items?.length || isCurrentReceiptCompleted}
+                    onClick={completeCurrentReceiptWithCheck}
+                    title="Beleg nur bei vollständiger Zuordnung abschließen"
+                    style={{ padding: "6px 8px", fontSize: "0.85rem" }}
+                  >
+                    Beleg abschließen
+                  </button>
+                )}
               </div>
             </div>
+          )}
+          {!collapsedSections.has("receipt-items") && currentReceipt && currentReceiptAssignmentStatus.itemCount > 0 && (
+            <p className={`hint ${currentReceiptAssignmentStatus.isComplete ? "success" : "warning"}`}>
+              {currentReceiptAssignmentStatus.isComplete
+                ? "Kontrolle: Alle Positionen haben Kostengruppe und Kostenträger."
+                : `Kontrolle: ${currentReceiptAssignmentStatus.missingEitherCount} von ${currentReceiptAssignmentStatus.itemCount} Positionen sind unvollständig (${currentReceiptAssignmentStatus.missingCategoryCount} ohne Kostengruppe, ${currentReceiptAssignmentStatus.missingCostCenterCount} ohne Kostenträger).`}
+            </p>
           )}
           {!collapsedSections.has("receipt-items") && (
             <>
@@ -4501,9 +4751,15 @@ function App() {
                       <div style={{ display: "flex", gap: "4px", alignItems: "flex-start", minWidth: 0, height: "40px" }}>
                         <input
                           className="description-input"
-                          value={item.description || ""}
+                          value={Object.prototype.hasOwnProperty.call(descriptionDrafts, item.id) ? descriptionDrafts[item.id] : (item.description || "")}
                           title={item.description || ""}
-                          onChange={(e) => patchItem(item.id, { description: e.target.value })}
+                          onChange={(e) => updateDescriptionDraft(item.id, e.target.value)}
+                          onBlur={() => commitDescriptionDraft(item)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.currentTarget.blur();
+                            }
+                          }}
                           style={{ flex: 1, minWidth: 0, height: "40px" }}
                         />
                         <button
@@ -4683,6 +4939,7 @@ function App() {
           )}
             </>
           )}
+          </div>
         </article>
       </section>
 
@@ -4915,7 +5172,7 @@ function App() {
               const diff = Math.abs(summedTotal - mainTotal);
               
               // Debug logs
-              console.log("ðŸ” DEBUG Ausgabensummen:");
+              console.log("🔍 DEBUG Ausgabensummen:");
               console.log("  Belege insgesamt:", receipts.length);
               console.log("  Totals per Konto:", totals);
               receipts.forEach((r, i) => {
@@ -5014,13 +5271,13 @@ function App() {
               }
               
               // Debug
-              console.log("ðŸ” DEBUG Verrechnung (Settlement - mit assigned_cost_center_id):");
+              console.log("🔍 DEBUG Verrechnung (Settlement - mit assigned_cost_center_id):");
               console.log("  Zahlungen:", zahlungen);
               console.log("  Kostenträger per CostCenter:", kostentraegerPerCostCenter);
               console.log("  Kostenträger per Account:", kostentraegerPerAccount);
               console.log("  Ausgleiche:", ausgleiche);
               
-              // Get debtors (negative = zahlt) and creditors (positive = erhÃ¤lt)
+              // Get debtors (negative = zahlt) and creditors (positive = erhält)
               // Both are PAYMENT ACCOUNTS (Zahlungskonten), not cost centers!
               const debtors = Object.entries(ausgleiche)
                 .filter(([id, bal]) => bal < -0.01)
