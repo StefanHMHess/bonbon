@@ -2,6 +2,7 @@
 import DatePicker, { registerLocale } from "react-datepicker";
 import { de } from "date-fns/locale";
 import { defaultHouseholdId, isSupabaseConfigured, supabase } from "./lib/supabase";
+import { getReceiptSumConsistencyStatus } from "./receiptConsistency";
 import "react-datepicker/dist/react-datepicker.css";
 
 registerLocale("de", de);
@@ -16,7 +17,7 @@ const dateTimeDE = new Intl.DateTimeFormat("de-DE", {
   timeStyle: "short",
 });
 const dateDE = new Intl.DateTimeFormat("de-DE", { dateStyle: "short" });
-const APP_VERSION = "v1.0.5";
+const APP_VERSION = "v1.0.7";
 const CURRENCY_OPTIONS = ["EUR", "TRY", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF"];
 const CURRENCY_SYMBOL = { EUR: "€", TRY: "₺", USD: "$", GBP: "£", CHF: "Fr", SEK: "kr", NOK: "kr", DKK: "kr", PLN: "zł", CZK: "Kč", HUF: "Ft" };
 const AUTH_EMAIL_STORAGE_KEY = "bonbox_auth_email";
@@ -125,14 +126,20 @@ const emptyDraft = {
   accountId: "",
 };
 
-function sumItems(receipts) {
-  return receipts.reduce((acc, receipt) => {
-    const chunk = (receipt.receipt_items || []).reduce((rowAcc, item) => {
-      if (item.is_ignored === true) return rowAcc;
-      return rowAcc + Number(item.amount || 0);
+function getReceiptAmountForTotals(receipt) {
+  const items = Array.isArray(receipt?.receipt_items) ? receipt.receipt_items : [];
+  if (items.length) {
+    return items.reduce((sum, item) => {
+      if (item?.is_ignored === true) return sum;
+      return sum + Number(item?.amount || 0);
     }, 0);
-    return acc + chunk;
-  }, 0);
+  }
+
+  return Number(receipt?.total_amount || 0);
+}
+
+function sumItems(receipts) {
+  return receipts.reduce((acc, receipt) => acc + getReceiptAmountForTotals(receipt), 0);
 }
 
 function formatReceiptDateTime(receipt) {
@@ -1187,6 +1194,57 @@ function App() {
     if (updateError) {
       setError(updateError.message);
     }
+  }
+
+  async function repairAllReceiptTotals() {
+    if (!receipts.length) {
+      setError("Keine Belege zum Reparieren vorhanden.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setSuccess("");
+
+    let repairedCount = 0;
+    let mismatchCount = 0;
+
+    for (const receipt of receipts) {
+      const items = Array.isArray(receipt.receipt_items) ? receipt.receipt_items : [];
+      const computedTotal = roundMoney(items.reduce((sum, item) => {
+        if (item.is_ignored === true) return sum;
+        return sum + Number(item.amount || 0);
+      }, 0));
+      const currentTotal = roundMoney(Number(receipt.total_amount || 0));
+
+      if (Math.abs(computedTotal - currentTotal) <= 0.01) {
+        continue;
+      }
+
+      mismatchCount += 1;
+      const { error: updateError } = await supabase
+        .from("receipts")
+        .update({ total_amount: computedTotal })
+        .eq("id", receipt.id);
+
+      if (updateError) {
+        setBusy(false);
+        setError(`Fehler beim Reparieren von Beleg ${receipt.id}: ${updateError.message}`);
+        return;
+      }
+
+      repairedCount += 1;
+    }
+
+    setBusy(false);
+
+    if (!mismatchCount) {
+      setSuccess("Keine abweichenden Beleggesamtsummen gefunden.");
+      return;
+    }
+
+    setSuccess(`Reparatur abgeschlossen: ${repairedCount} Belege neu berechnet.`);
+    await loadReceipts();
   }
 
   async function clearReceiptItems(receiptId) {
@@ -2858,6 +2916,8 @@ function App() {
     setError("");
     setSuccess("");
 
+    const paymentAccountToUse = newPaymentAccountId || currentReceipt?.payment_account_id || defaultFamilyAccount.id;
+
     const { data, error: insertError } = await supabase
       .from("receipts")
       .insert({
@@ -2867,7 +2927,7 @@ function App() {
         total_amount: 0,
         currency: "EUR",
         ai_status: "done",
-        payment_account_id: newPaymentAccountId || defaultFamilyAccount.id,
+        payment_account_id: paymentAccountToUse,
       })
       .select("id")
       .single();
@@ -2884,6 +2944,13 @@ function App() {
     setBlankReceiptPreset({ receiptId: data?.id || null, costCenterId: carryCostCenterId });
     setSelectedReceipt(data?.id || null);
     setManualDraft((prev) => ({ ...prev, accountId: carryCostCenterId || "" }));
+  }
+
+  async function refreshReceiptData(receiptId) {
+    if (receiptId) {
+      await recalculateReceiptTotal(receiptId);
+    }
+    await loadReceipts();
   }
 
   async function addManualItem() {
@@ -2974,8 +3041,7 @@ function App() {
     }
 
     setManualDraft(emptyDraft);
-    await recalculateReceiptTotal(selectedReceipt);
-    await loadReceipts();
+    await refreshReceiptData(selectedReceipt);
   }
 
   async function patchItem(itemId, patch) {
@@ -3006,11 +3072,7 @@ function App() {
       return false;
     }
 
-    if (receiptId) {
-      await recalculateReceiptTotal(receiptId);
-    }
-
-    await loadReceipts();
+    await refreshReceiptData(receiptId);
     return true;
   }
 
@@ -3756,49 +3818,6 @@ function App() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <button
-                  onClick={() => toggleSection("cost-center-form")}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: "0",
-                    display: "flex",
-                    alignItems: "center",
-                    fontSize: "1.1rem",
-                    color: "inherit",
-                  }}
-                  title="Sektion ein-/ausblenden"
-                >
-                  {collapsedSections.has("cost-center-form") ? "▸" : "▾"}
-                </button>
-                <h2 style={{ margin: 0 }}>1. Kosten für (Kostenträger)</h2>
-              </div>
-              <button className="btn secondary" onClick={() => setShowCostCenterModal(true)}>
-                  Kostenträger bearbeiten
-              </button>
-            </div>
-            {!collapsedSections.has("cost-center-form") && (
-            <div className="upload-account-row">
-              <div className={`color-select-wrapper ${!newReceiptCostCenterId ? 'missing-required' : ''}`} style={!newReceiptCostCenterId ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle(selectedUploadCostCenter?.color)}>
-                <select
-                  value={newReceiptCostCenterId || ""}
-                  onChange={(e) => setNewReceiptCostCenterId(e.target.value || null)}
-                >
-                  <option value="">-- Wähle Kostenträger --</option>
-                  {costCenterOptions.map((costCenter) => (
-                    <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            )}
-          </div>
-
-          {/* Section 2 */}
-          <div className="receipt-form-section">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <button
                   onClick={() => toggleSection("payment-account-form")}
                   style={{
                     background: "none",
@@ -3814,7 +3833,7 @@ function App() {
                 >
                   {collapsedSections.has("payment-account-form") ? "▸" : "▾"}
                 </button>
-                <h2 style={{ margin: 0 }}>2. Zahlung von (Zahlungskonto)</h2>
+                <h2 style={{ margin: 0 }}>1. Zahlung von (Zahlungskonto)</h2>
               </div>
               <button
                 className="btn secondary"
@@ -3838,6 +3857,49 @@ function App() {
                   <option key={account.id} value={account.id}>{account.name}</option>
                 ))}
               </select>
+            </div>
+            )}
+          </div>
+
+          {/* Section 2 */}
+          <div className="receipt-form-section">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <button
+                  onClick={() => toggleSection("cost-center-form")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "0",
+                    display: "flex",
+                    alignItems: "center",
+                    fontSize: "1.1rem",
+                    color: "inherit",
+                  }}
+                  title="Sektion ein-/ausblenden"
+                >
+                  {collapsedSections.has("cost-center-form") ? "▸" : "▾"}
+                </button>
+                <h2 style={{ margin: 0 }}>2. Kosten für (Kostenträger)</h2>
+              </div>
+              <button className="btn secondary" onClick={() => setShowCostCenterModal(true)}>
+                  Kostenträger bearbeiten
+              </button>
+            </div>
+            {!collapsedSections.has("cost-center-form") && (
+            <div className="upload-account-row">
+              <div className={`color-select-wrapper ${!newReceiptCostCenterId ? 'missing-required' : ''}`} style={!newReceiptCostCenterId ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e" } : buildColorInputStyle(selectedUploadCostCenter?.color)}>
+                <select
+                  value={newReceiptCostCenterId || ""}
+                  onChange={(e) => setNewReceiptCostCenterId(e.target.value || null)}
+                >
+                  <option value="">-- Wähle Kostenträger --</option>
+                  {costCenterOptions.map((costCenter) => (
+                    <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             )}
           </div>
@@ -3880,9 +3942,21 @@ function App() {
                 {selectedFile ? `Ausgewählt: ${selectedFile.name}` : "Noch keine Datei ausgewählt"}
               </p>
             </div>
-            <button className="btn" disabled={!selectedFile || busy || !hasSetup} onClick={uploadAndExtract}>
-              {busy ? "Analysiere..." : "Beleg per KI auswerten"}
-            </button>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" }}>
+              <button className="btn secondary" onClick={createBlankReceipt} disabled={busy}>
+                Blankobeleg
+              </button>
+              <button className="btn" disabled={!selectedFile || busy || !hasSetup} onClick={uploadAndExtract}>
+                {busy ? "Analysiere..." : "Beleg per KI auswerten"}
+              </button>
+              <button className="btn secondary" onClick={() => {
+                if (receipts.length) {
+                  setSelectedReceipt(receipts[0].id);
+                }
+              }} disabled={!receipts.length}>
+                Abbrechen
+              </button>
+            </div>
             </>
             )}
           </div>
@@ -4398,7 +4472,10 @@ function App() {
                     className="btn"
                     style={{ gridColumn: "span 1" }}
                     onClick={() => {
-                      setNewReceiptCostCenterId(selectedCostCenterForReceipt || newReceiptCostCenterId || null);
+                      const nextPaymentAccountId = newPaymentAccountId || currentReceipt?.payment_account_id || null;
+                      const nextCostCenterId = selectedCostCenterForReceipt || newReceiptCostCenterId || currentReceipt?.receipt_items?.[0]?.assigned_cost_center_id || null;
+                      setNewPaymentAccountId(nextPaymentAccountId);
+                      setNewReceiptCostCenterId(nextCostCenterId);
                       setSelectedReceipt(null);
                     }}
                   >
@@ -4471,34 +4548,6 @@ function App() {
               </>
             )}
 
-            {!collapsedSections.has("receipts") && !currentReceipt && (
-              <div className="receipt-actions" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginBottom: "10px", padding: "2px 0" }}>
-                <button
-                  className="btn secondary"
-                  onClick={() => {
-                    if (receipts.length) {
-                      setSelectedReceipt(receipts[0].id);
-                    }
-                  }}
-                  disabled={!receipts.length}
-                >
-                  Abbrechen
-                </button>
-                <button
-                  className="btn secondary"
-                  onClick={createBlankReceipt}
-                  disabled={busy}
-                >
-                  Blankobeleg
-                </button>
-                <button
-                  className="btn secondary"
-                  onClick={() => toggleSection("receipts")}
-                >
-                  Sektion schliessen
-                </button>
-              </div>
-            )}
           </div>
 
           <div className="panel-scroll-body">
@@ -4559,6 +4608,7 @@ function App() {
           <div className="receipt-list">
             {filteredReceipts.map((receipt) => {
               const assignmentStatus = getReceiptAssignmentStatus(receipt);
+              const consistencyStatus = getReceiptSumConsistencyStatus(receipt);
               const isReceiptCompleted = completedReceiptIds.has(String(receipt.id));
               const paymentAccount = paymentAccountOptions.find((a) => a.id === receipt.payment_account_id);
               const paymentAccountColor = paymentAccount?.color;
@@ -4608,6 +4658,11 @@ function App() {
                   {!assignmentStatus.isComplete && assignmentStatus.itemCount > 0 && (
                     <span className="receipt-warning-badge" title="Nicht alle Positionen sind vollständig zugeordnet">
                       ⚠ Unvollständig
+                    </span>
+                  )}
+                  {!consistencyStatus.isConsistent && (
+                    <span className="receipt-warning-badge" title={`Positionensumme ${amountDE.format(consistencyStatus.computedTotal)} vs. Belegsumme ${amountDE.format(consistencyStatus.currentTotal)}`}>
+                      ⚠ Summe stimmt nicht
                     </span>
                   )}
                   {receipt.image_path?.toLowerCase().endsWith(".pdf") && <span className="receipt-pdf-badge">PDF</span>}
@@ -4730,6 +4785,17 @@ function App() {
                 : `Kontrolle: ${currentReceiptAssignmentStatus.missingEitherCount} von ${currentReceiptAssignmentStatus.itemCount} Positionen sind unvollständig (${currentReceiptAssignmentStatus.missingCategoryCount} ohne Kostengruppe, ${currentReceiptAssignmentStatus.missingCostCenterCount} ohne Kostenträger).`}
             </p>
           )}
+          {!collapsedSections.has("receipt-items") && currentReceipt && (
+            (() => {
+              const consistencyStatus = getReceiptSumConsistencyStatus(currentReceipt);
+              if (consistencyStatus.isConsistent) return null;
+              return (
+                <p className="hint warning" style={{ marginTop: "8px" }}>
+                  ⚠️ Belegsumme stimmt nicht mit der Summe der Positionen überein: Positionen {amountDE.format(consistencyStatus.computedTotal)}, Belegsumme {amountDE.format(consistencyStatus.currentTotal)}.
+                </p>
+              );
+            })()
+          )}
           {!collapsedSections.has("receipt-items") && (
             <>
 
@@ -4744,7 +4810,7 @@ function App() {
 
               <div className="item-list">
                 {(currentReceipt.receipt_items || []).map((item) => (
-                  <div key={item.id} className="receipt-item" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px", paddingBottom: "8px", borderBottom: "1px solid rgba(0,0,0,0.05)", minWidth: 0 }}>
+                  <div key={item.id} className="receipt-item">
                     {/* Left column: Description and Amount */}
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
                       {/* Row 1: Description with delete button */}
@@ -4859,7 +4925,7 @@ function App() {
 
               <div className="manual-box">
                 <h3>Position manuell hinzufügen</h3>
-                <div className="receipt-item" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px", paddingBottom: "8px", borderBottom: "1px solid rgba(0,0,0,0.05)", minWidth: 0 }}>
+                <div className="receipt-item receipt-item-manual">
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
                     <div style={{ display: "flex", gap: "4px", alignItems: "flex-start", minWidth: 0, height: "40px" }}>
                       <input
@@ -5148,17 +5214,10 @@ function App() {
               totals[defaultFamilyAccount.id] = 0;
               
               // Sum receipts by payment_account_id (with default to family account)
-              // If total_amount is 0/null, calculate from items instead
+              // Use the same effective amount calculation as the main totals.
               for (const receipt of receipts) {
                 const accountId = receipt.payment_account_id || defaultFamilyAccount.id;
-                let amount = receipt.total_amount || 0;
-                if (amount === 0) {
-                  // Fallback: sum the items
-                  amount = (receipt.receipt_items || []).reduce((sum, item) => {
-                    if (item.is_ignored === true) return sum;
-                    return sum + Number(item.amount || 0);
-                  }, 0);
-                }
+                const amount = getReceiptAmountForTotals(receipt);
                 totals[accountId] = (totals[accountId] || 0) + amount;
               }
               
@@ -5196,9 +5255,19 @@ function App() {
                     ))}
                   </div>
                   {diff > 0.01 && (
-                    <p style={{ color: "red", fontSize: "0.9em", marginTop: "8px", padding: "8px", backgroundColor: "#ffe0e0", borderRadius: "4px" }}>
-                      ⚠️ Summe der Konten ({euro.format(summedTotal)}) ≠ Gesamtausgaben ({euro.format(mainTotal)})
-                    </p>
+                    <div style={{ marginTop: "8px", padding: "8px", backgroundColor: "#ffe0e0", borderRadius: "4px" }}>
+                      <p style={{ color: "red", fontSize: "0.9em", margin: 0 }}>
+                        ⚠️ Summe der Konten ({euro.format(summedTotal)}) ≠ Gesamtausgaben ({euro.format(mainTotal)})
+                      </p>
+                      <button
+                        className="btn secondary mini-btn"
+                        disabled={busy}
+                        onClick={repairAllReceiptTotals}
+                        style={{ marginTop: "8px" }}
+                      >
+                        Belegsummen reparieren
+                      </button>
+                    </div>
                   )}
                 </div>
               );
@@ -5222,13 +5291,7 @@ function App() {
               
               for (const receipt of receipts) {
                 const accountId = receipt.payment_account_id || defaultFamilyAccount.id;
-                let amount = receipt.total_amount || 0;
-                if (amount === 0) {
-                  amount = (receipt.receipt_items || []).reduce((sum, item) => {
-                    if (item.is_ignored === true) return sum;
-                    return sum + Number(item.amount || 0);
-                  }, 0);
-                }
+                const amount = getReceiptAmountForTotals(receipt);
                 zahlungen[accountId] = (zahlungen[accountId] || 0) + amount;
               }
               

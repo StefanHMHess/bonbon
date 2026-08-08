@@ -885,6 +885,28 @@ label {
   margin-top: 10px;
 }
 
+.receipt-item {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(16, 36, 62, 0.14);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(241, 251, 249, 0.9));
+  box-shadow:
+    0 2px 6px rgba(16, 36, 62, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+.receipt-item-manual {
+  border-style: dashed;
+  border-color: rgba(24, 182, 163, 0.42);
+  background:
+    linear-gradient(180deg, rgba(237, 253, 250, 0.95), rgba(255, 255, 255, 0.94));
+}
+
 .item-head {
   display: grid;
   gap: 8px;
