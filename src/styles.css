@@ -13,7 +13,7 @@
   --gift-deep: #eb5a46;
   --shadow: 0 20px 40px rgba(16, 36, 62, 0.12);
   --cost-group-grid-columns: 1.5fr 0.8fr 2.4fr 0.28fr 108px 108px;
-  --account-grid-columns: 1.2fr 0.9fr 0.9fr 0.7fr 116px 116px;
+  --account-grid-columns: 1.2fr 0.9fr 0.9fr 1.2fr 0.7fr 116px 116px;
 }
 
 * {

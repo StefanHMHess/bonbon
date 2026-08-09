@@ -17,7 +17,7 @@ const dateTimeDE = new Intl.DateTimeFormat("de-DE", {
   timeStyle: "short",
 });
 const dateDE = new Intl.DateTimeFormat("de-DE", { dateStyle: "short" });
-const APP_VERSION = "v1.0.7";
+const APP_VERSION = "v1.0.8";
 const CURRENCY_OPTIONS = ["EUR", "TRY", "USD", "GBP", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF"];
 const CURRENCY_SYMBOL = { EUR: "€", TRY: "₺", USD: "$", GBP: "£", CHF: "Fr", SEK: "kr", NOK: "kr", DKK: "kr", PLN: "zł", CZK: "Kč", HUF: "Ft" };
 const AUTH_EMAIL_STORAGE_KEY = "bonbox_auth_email";
@@ -237,6 +237,17 @@ function formatIsoDate(value) {
 
 function getReceiptAssignmentStatus(receipt) {
   const items = Array.isArray(receipt?.receipt_items) ? receipt.receipt_items : [];
+
+  if (receipt?.merchant === "Ausgleichszahlung") {
+    return {
+      itemCount: items.length,
+      missingCategoryCount: 0,
+      missingCostCenterCount: 0,
+      missingEitherCount: 0,
+      isComplete: true,
+    };
+  }
+
   let missingCategoryCount = 0;
   let missingCostCenterCount = 0;
   let missingEitherCount = 0;
@@ -324,6 +335,24 @@ function parseAmountDE(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function parseShareInput(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  if (raw.includes("/")) {
+    const [numRaw, denRaw] = raw.split("/").map((part) => String(part || "").trim());
+    const num = Number(numRaw.replace(",", "."));
+    const den = Number(denRaw.replace(",", "."));
+    if (!Number.isFinite(num) || !Number.isFinite(den) || den === 0) return null;
+    const ratio = num / den;
+    return Number.isFinite(ratio) && ratio > 0 ? ratio : null;
+  }
+
+  const normalized = raw.replace(",", ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
 function normalizeCurrencyCode(value) {
   const normalized = String(value || "EUR").trim().toUpperCase();
   const aliases = {
@@ -348,6 +377,40 @@ function normalizeCurrencyCode(value) {
 
 function roundMoney(value) {
   return Number(Number(value || 0).toFixed(2));
+}
+
+function distributeAmountsByWeights(rows, totalAmount, getWeight) {
+  if (!rows.length) return [];
+
+  const weights = rows.map((row) => Number(getWeight(row) || 0));
+  const totalWeight = weights.reduce((sum, value) => sum + value, 0);
+  const effectiveWeights = totalWeight > 0 ? weights : rows.map(() => 1);
+  const effectiveTotalWeight = effectiveWeights.reduce((sum, value) => sum + value, 0);
+
+  const distributed = rows.map((row, index) => {
+    const rawAmount = effectiveTotalWeight > 0 ? (totalAmount * effectiveWeights[index]) / effectiveTotalWeight : 0;
+    return {
+      ...row,
+      rawAmount,
+      amount: roundMoney(rawAmount),
+    };
+  });
+
+  const roundedSum = roundMoney(distributed.reduce((sum, row) => sum + row.amount, 0));
+  const remainder = roundMoney(totalAmount - roundedSum);
+
+  if (Math.abs(remainder) >= 0.01 && distributed.length) {
+    const maxIndex = distributed.reduce((bestIndex, row, index, arr) => (
+      Math.abs(row.rawAmount) > Math.abs(arr[bestIndex].rawAmount) ? index : bestIndex
+    ), 0);
+
+    distributed[maxIndex] = {
+      ...distributed[maxIndex],
+      amount: roundMoney(distributed[maxIndex].amount + remainder),
+    };
+  }
+
+  return distributed.filter((row) => Math.abs(row.amount) > 0.0001);
 }
 
 function normalizeHexColor(value) {
@@ -526,6 +589,7 @@ function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [manualDraft, setManualDraft] = useState(emptyDraft);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
+  const [receiptSplitRows, setReceiptSplitRows] = useState([{ costCenterId: "", share: "1" }]);
   const [selectedCostCenterForReceipt, setSelectedCostCenterForReceipt] = useState(null);
   const [descriptionDrafts, setDescriptionDrafts] = useState({});
   const [amountDrafts, setAmountDrafts] = useState({});
@@ -583,6 +647,7 @@ function App() {
     name: "",
     color: "#18b6a3",
     accountType: "person",
+    costCenterId: "",
     sortOrder: 100,
   });
   const [hideSettlementReceipts, setHideSettlementReceipts] = useState(true);
@@ -821,9 +886,52 @@ function App() {
     return { year, legend, months, maxMonthTotal: Math.max(...monthlyTotals, 0) };
   }, [receipts, costGroups]);
 
+  // Cost Centers (Kostenträger - wer trägt die Kosten?)
+  const costCenterOptions = useMemo(() => {
+    let next = [...costCenters];
+    if (!next.length && costCenters.length === 0) {
+      next = [];
+    }
+    return next.sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999));
+  }, [costCenters]);
+
+  // Payment Accounts (Zahlungskonten - wer hat bezahlt?)
+  const paymentAccountOptions = useMemo(() => {
+    const next = [...familyAccounts];
+    const hasFamily = next.some((x) => x.account_type === "family");
+    if (!hasFamily) {
+      next.unshift(defaultFamilyAccount);
+    }
+    return next;
+  }, [familyAccounts]);
+
+  const accountById = useMemo(
+    () => new Map(paymentAccountOptions.map((account) => [account.id, account])),
+    [paymentAccountOptions]
+  );
+
+  const accountIdByCostCenterId = useMemo(() => {
+    const map = new Map();
+    for (const account of paymentAccountOptions) {
+      if (account?.cost_center_id) {
+        map.set(account.cost_center_id, account.id);
+      }
+    }
+    return map;
+  }, [paymentAccountOptions]);
+
+  const costCenterById = useMemo(
+    () => new Map(costCenterOptions.map((costCenter) => [costCenter.id, costCenter])),
+    [costCenterOptions]
+  );
+
+  const resolveAllocationCostCenterId = (alloc) => {
+    if (alloc?.cost_center_id) return alloc.cost_center_id;
+    return accountById.get(alloc?.account_id)?.cost_center_id || null;
+  };
+
   const accountTotals = useMemo(() => {
     const accounts = familyAccounts.length ? familyAccounts : [defaultFamilyAccount];
-    const accountById = new Map(accounts.map((a) => [a.id, a]));
     const totals = new Map();
     const allocByItemId = new Map();
 
@@ -851,9 +959,13 @@ function App() {
         let allocated = 0;
         for (const alloc of allocations) {
           const amount = Number(alloc.amount || 0) * factor;
-          const old = totals.get(alloc.account_id) || 0;
-          totals.set(alloc.account_id, old + amount);
-          allocated += amount;
+          const costCenterId = resolveAllocationCostCenterId(alloc);
+          const accountId = alloc.account_id || accountIdByCostCenterId.get(costCenterId);
+          if (accountId) {
+            const old = totals.get(accountId) || 0;
+            totals.set(accountId, old + amount);
+            allocated += amount;
+          }
         }
 
         if (allocated < itemAmount) {
@@ -880,19 +992,44 @@ function App() {
         const sortB = accountB?.sort_order ?? 999;
         return sortA - sortB;
       });
-  }, [receipts, familyAccounts, itemAllocations]);
+  }, [receipts, familyAccounts, itemAllocations, accountById, accountIdByCostCenterId]);
 
   // Totals by Cost Centers (Kostenträger) - new system using assigned_cost_center_id
   const costCenterTotals = useMemo(() => {
-    const costCenterById = new Map(costCenters.map((cc) => [cc.id, cc]));
     const totals = new Map();
+    const allocByItemId = new Map();
+
+    for (const alloc of itemAllocations) {
+      const list = allocByItemId.get(alloc.receipt_item_id) || [];
+      list.push(alloc);
+      allocByItemId.set(alloc.receipt_item_id, list);
+    }
 
     for (const receipt of receipts) {
       for (const item of receipt.receipt_items || []) {
         if (item.is_ignored === true) continue;
         const itemAmount = Number(item.amount || 0);
-        
-        // Use assigned_cost_center_id if available
+        const allocations = allocByItemId.get(item.id) || [];
+
+        if (allocations.length) {
+          const totalAllocatedRaw = allocations.reduce((sum, alloc) => sum + Number(alloc.amount || 0), 0);
+          const factor = totalAllocatedRaw > itemAmount && totalAllocatedRaw > 0 ? itemAmount / totalAllocatedRaw : 1;
+
+          let allocated = 0;
+          for (const alloc of allocations) {
+            const costCenterId = resolveAllocationCostCenterId(alloc);
+            if (!costCenterId) continue;
+            const amount = Number(alloc.amount || 0) * factor;
+            totals.set(costCenterId, (totals.get(costCenterId) || 0) + amount);
+            allocated += amount;
+          }
+
+          if (allocated < itemAmount && item.assigned_cost_center_id) {
+            totals.set(item.assigned_cost_center_id, (totals.get(item.assigned_cost_center_id) || 0) + (itemAmount - allocated));
+          }
+          continue;
+        }
+
         if (item.assigned_cost_center_id) {
           const old = totals.get(item.assigned_cost_center_id) || 0;
           totals.set(item.assigned_cost_center_id, old + itemAmount);
@@ -917,11 +1054,9 @@ function App() {
         const sortB = ccB?.sort_order ?? 999;
         return sortA - sortB;
       });
-  }, [receipts, costCenters]);
+  }, [receipts, costCenters, itemAllocations]);
 
   const accountDetails = useMemo(() => {
-    const accounts = familyAccounts.length ? familyAccounts : [defaultFamilyAccount];
-    const accountById = new Map(accounts.map((a) => [a.id, a]));
     const allocByItemId = new Map();
     const now = new Date();
     const year = now.getFullYear();
@@ -949,11 +1084,12 @@ function App() {
 
         let allocated = 0;
         for (const alloc of allocations) {
-          const accountId = alloc.account_id || defaultFamilyAccount.id;
-          const row = details.get(accountId) || {
-            id: accountId,
-            name: accountById.get(accountId)?.name || "Unbekanntes Konto",
-            color: accountById.get(accountId)?.color || "#456279",
+          const costCenterId = resolveAllocationCostCenterId(alloc);
+          if (!costCenterId) continue;
+          const row = details.get(costCenterId) || {
+            id: costCenterId,
+            name: costCenterById.get(costCenterId)?.name || "Unbekannter Kostenträger",
+            color: costCenterById.get(costCenterId)?.color || "#456279",
             total: 0,
             yearTotal: 0,
             monthTotal: 0,
@@ -963,16 +1099,16 @@ function App() {
           row.total += amount;
           if (isYear) row.yearTotal += amount;
           if (isMonth) row.monthTotal += amount;
-          details.set(accountId, row);
+          details.set(costCenterId, row);
           allocated += amount;
         }
 
-        if (allocated < itemAmount) {
-          const accountId = defaultFamilyAccount.id;
-          const row = details.get(accountId) || {
-            id: accountId,
-            name: accountById.get(accountId)?.name || defaultFamilyAccount.name,
-            color: accountById.get(accountId)?.color || defaultFamilyAccount.color,
+        if (allocated < itemAmount && item.assigned_cost_center_id) {
+          const costCenterId = item.assigned_cost_center_id;
+          const row = details.get(costCenterId) || {
+            id: costCenterId,
+            name: costCenterById.get(costCenterId)?.name || "Unbekannter Kostenträger",
+            color: costCenterById.get(costCenterId)?.color || "#456279",
             total: 0,
             yearTotal: 0,
             monthTotal: 0,
@@ -982,7 +1118,7 @@ function App() {
           row.total += amount;
           if (isYear) row.yearTotal += amount;
           if (isMonth) row.monthTotal += amount;
-          details.set(accountId, row);
+          details.set(costCenterId, row);
         }
       }
     }
@@ -1003,46 +1139,27 @@ function App() {
 
     overall.averagePerMonth = monthsElapsed > 0 ? overall.yearTotal / monthsElapsed : 0;
     return { rows, overall };
-  }, [receipts, familyAccounts, itemAllocations]);
-
-  // Cost Centers (Kostenträger - wer trägt die Kosten?)
-  const costCenterOptions = useMemo(() => {
-    let next = [...costCenters];
-    if (!next.length && costCenters.length === 0) {
-      // Fallback: if costCenters not loaded, use empty
-      next = [];
-    }
-    return next.sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999));
-  }, [costCenters]);
-
-  // Payment Accounts (Zahlungskonten - wer hat bezahlt?)
-  const paymentAccountOptions = useMemo(() => {
-    const next = [...familyAccounts];
-    const hasFamily = next.some((x) => x.account_type === "family");
-    if (!hasFamily) {
-      next.unshift(defaultFamilyAccount);
-    }
-    return next;
-  }, [familyAccounts]);
+  }, [receipts, itemAllocations, costCenterById]);
 
   const selectedUploadCostCenter = useMemo(() => {
     if (!newReceiptCostCenterId) return null;
     return costCenterOptions.find((cc) => cc.id === newReceiptCostCenterId) || null;
   }, [costCenterOptions, newReceiptCostCenterId]);
 
-  const primaryAccountByItemId = useMemo(() => {
+  const primaryAllocationByItemId = useMemo(() => {
     const map = new Map();
 
     for (const alloc of itemAllocations) {
       const amount = Number(alloc.amount || 0);
+      const costCenterId = resolveAllocationCostCenterId(alloc);
       const current = map.get(alloc.receipt_item_id);
       if (!current || amount > current.amount) {
-        map.set(alloc.receipt_item_id, { accountId: alloc.account_id, amount });
+        map.set(alloc.receipt_item_id, { accountId: alloc.account_id || null, costCenterId, amount });
       }
     }
 
     return map;
-  }, [itemAllocations]);
+  }, [itemAllocations, accountById]);
 
   const assignedCostCenterByItemId = useMemo(() => {
     const map = new Map();
@@ -1410,6 +1527,55 @@ function App() {
       setSelectedCostCenterForReceipt(null);
     }
   }, [selectedReceipt, receipts, blankReceiptPreset]);
+
+  useEffect(() => {
+    if (!selectedReceipt) return;
+
+    const receipt = receipts.find((r) => r.id === selectedReceipt);
+    if (!receipt) return;
+
+    const itemIds = new Set((receipt.receipt_items || []).map((item) => item.id).filter(Boolean));
+    const relevantAllocations = itemAllocations.filter((alloc) => itemIds.has(alloc.receipt_item_id));
+
+    if (relevantAllocations.length) {
+      const totalsByCostCenterId = new Map();
+      for (const alloc of relevantAllocations) {
+        const costCenterId = resolveAllocationCostCenterId(alloc);
+        if (!costCenterId) continue;
+        const old = totalsByCostCenterId.get(costCenterId) || 0;
+        totalsByCostCenterId.set(costCenterId, old + Number(alloc.amount || 0));
+      }
+
+      const totalAmount = Array.from(totalsByCostCenterId.values()).reduce((sum, value) => sum + value, 0);
+      const hydratedRows = Array.from(totalsByCostCenterId.entries())
+        .map(([costCenterId, amount]) => {
+          const normalizedShare = totalAmount > 0 ? amount / totalAmount : 0;
+          const shareText = totalAmount > 0
+            ? String(Number(normalizedShare.toFixed(4))).replace(".", ",")
+            : "1";
+
+          return {
+            costCenterId,
+            share: shareText,
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => {
+          const aSort = costCenterById.get(a.costCenterId)?.sort_order ?? 999;
+          const bSort = costCenterById.get(b.costCenterId)?.sort_order ?? 999;
+          return aSort - bSort;
+        });
+
+      if (hydratedRows.length) {
+        setReceiptSplitRows(hydratedRows);
+        return;
+      }
+    }
+
+    const firstAssigned = (receipt.receipt_items || []).find((item) => item?.assigned_cost_center_id)?.assigned_cost_center_id || "";
+    const fallbackCostCenterId = selectedCostCenterForReceipt || firstAssigned || costCenterOptions[0]?.id || "";
+    setReceiptSplitRows([{ costCenterId: fallbackCostCenterId, share: "1" }]);
+  }, [selectedReceipt, receipts, itemAllocations, selectedCostCenterForReceipt, costCenterOptions, costCenterById]);
 
   // Sync colors from payment accounts to cost centers
   useEffect(() => {
@@ -2115,6 +2281,7 @@ function App() {
           name: account.name || "",
           color: account.color || "#18b6a3",
           accountType: account.account_type || "person",
+          costCenterId: account.cost_center_id || "",
           sortOrder: Number(account.sort_order || 100),
         };
         return acc;
@@ -2242,10 +2409,19 @@ function App() {
       return;
     }
 
-    const { data, error: allocError } = await supabase
+    let allocResponse = await supabase
       .from("receipt_item_allocations")
-      .select("receipt_item_id, account_id, amount")
+      .select("receipt_item_id, account_id, cost_center_id, amount")
       .in("receipt_item_id", itemIds);
+
+    if (allocResponse.error && String(allocResponse.error.message || "").includes("cost_center_id")) {
+      allocResponse = await supabase
+        .from("receipt_item_allocations")
+        .select("receipt_item_id, account_id, amount")
+        .in("receipt_item_id", itemIds);
+    }
+
+    const { data, error: allocError } = allocResponse;
 
     if (allocError) {
       setItemAllocations([]);
@@ -2260,10 +2436,10 @@ function App() {
         console.log(`    Alloc ${i}: receipt_item_id=${alloc.receipt_item_id}`);
       });
     }
-    setItemAllocations(data || []);
+    setItemAllocations((data || []).map((alloc) => ({ ...alloc, cost_center_id: alloc.cost_center_id || null })));
   }
 
-  async function setSingleItemAllocation(itemId, accountId, amount) {
+  async function replaceItemAllocations(itemId, allocationSpecs) {
     const { error: deleteError } = await supabase
       .from("receipt_item_allocations")
       .delete()
@@ -2274,20 +2450,52 @@ function App() {
       return false;
     }
 
-    const parsedAmount = Number(Number(amount || 0).toFixed(2));
-    if (!accountId || accountId === defaultFamilyAccount.id || parsedAmount <= 0) {
+    const normalizedAllocations = (allocationSpecs || [])
+      .map((row) => ({
+        costCenterId: String(row?.costCenterId || "").trim() || null,
+        amount: roundMoney(Number(row?.amount || 0)),
+      }))
+      .filter((row) => row.costCenterId && row.amount > 0);
+
+    if (!normalizedAllocations.length) {
       setItemAllocations((prev) => prev.filter((x) => x.receipt_item_id !== itemId));
       return true;
     }
 
-    const { data, error: insertError } = await supabase
+    const insertRows = normalizedAllocations.map((row) => ({
+      receipt_item_id: itemId,
+      account_id: accountIdByCostCenterId.get(row.costCenterId) || null,
+      cost_center_id: row.costCenterId,
+      amount: row.amount,
+    }));
+
+    let insertResponse = await supabase
       .from("receipt_item_allocations")
-      .insert({
-        receipt_item_id: itemId,
-        account_id: accountId,
-        amount: parsedAmount,
-      })
-      .select("receipt_item_id, account_id, amount");
+      .insert(insertRows)
+      .select("receipt_item_id, account_id, cost_center_id, amount");
+
+    if (insertResponse.error && String(insertResponse.error.message || "").includes("cost_center_id")) {
+      const fallbackRows = insertRows
+        .filter((row) => row.account_id)
+        .map((row) => ({
+          receipt_item_id: row.receipt_item_id,
+          account_id: row.account_id,
+          amount: row.amount,
+        }));
+
+      if (fallbackRows.length !== insertRows.length) {
+        setError("Für Kostensplits ohne verknüpftes Zahlungskonto muss zuerst die neue DB-Migration für cost_center_id ausgeführt werden.");
+        setItemAllocations((prev) => prev.filter((x) => x.receipt_item_id !== itemId));
+        return false;
+      }
+
+      insertResponse = await supabase
+        .from("receipt_item_allocations")
+        .insert(fallbackRows)
+        .select("receipt_item_id, account_id, amount");
+    }
+
+    const { data, error: insertError } = insertResponse;
 
     if (insertError) {
       setError(insertError.message);
@@ -2296,10 +2504,36 @@ function App() {
 
     setItemAllocations((prev) => {
       const filtered = prev.filter((x) => x.receipt_item_id !== itemId);
-      return [...filtered, ...(data || [])];
+      const nextRows = (data || []).map((alloc) => ({ ...alloc, cost_center_id: alloc.cost_center_id || null }));
+      return [...filtered, ...nextRows];
     });
 
     return true;
+  }
+
+  async function setSingleItemAllocation(itemId, costCenterId, amount) {
+    const parsedAmount = roundMoney(Number(amount || 0));
+    if (!costCenterId || parsedAmount <= 0) {
+      return replaceItemAllocations(itemId, []);
+    }
+    return replaceItemAllocations(itemId, [{ costCenterId, amount: parsedAmount }]);
+  }
+
+  async function rescaleItemAllocations(itemId, nextAmount, fallbackCostCenterId = null) {
+    const currentAllocations = itemAllocations.filter((alloc) => alloc.receipt_item_id === itemId);
+    if (!currentAllocations.length) return true;
+
+    const normalizedRows = currentAllocations
+      .map((alloc) => ({
+        costCenterId: resolveAllocationCostCenterId(alloc) || fallbackCostCenterId,
+        weight: Number(alloc.amount || 0),
+      }))
+      .filter((row) => row.costCenterId);
+
+    if (!normalizedRows.length) return true;
+
+    const distributedRows = distributeAmountsByWeights(normalizedRows, roundMoney(Number(nextAmount || 0)), (row) => row.weight);
+    return replaceItemAllocations(itemId, distributedRows);
   }
 
   async function deleteItemAllocation(itemId) {
@@ -2376,6 +2610,154 @@ function App() {
     await loadItemAllocations(receipts.flatMap((r) => (r.receipt_items || []).map((i) => i.id)).filter(Boolean));
   }
 
+  function addReceiptSplitRow() {
+    setReceiptSplitRows((prev) => [...prev, { costCenterId: "", share: "1" }]);
+  }
+
+  function removeReceiptSplitRow(index) {
+    setReceiptSplitRows((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      return next.length ? next : [{ costCenterId: "", share: "1" }];
+    });
+  }
+
+  function updateReceiptSplitRow(index, patch) {
+    setReceiptSplitRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  }
+
+  async function applyReceiptSplitByCostCenters() {
+    if (!currentReceipt?.id) return;
+
+    const items = (currentReceipt.receipt_items || []).filter((item) => item?.is_ignored !== true);
+    if (!items.length) {
+      setError("Keine aktiven Positionen zum Aufteilen vorhanden.");
+      return;
+    }
+
+    const splitRows = [];
+    for (const row of receiptSplitRows) {
+      const costCenterId = String(row?.costCenterId || "").trim();
+      const share = parseShareInput(row?.share);
+      if (!costCenterId) continue;
+      if (share === null) {
+        setError("Bitte nur gültige Anteile eintragen (z.B. 1/3, 1/2, 0,5). ");
+        return;
+      }
+
+      splitRows.push({ costCenterId, weight: share });
+    }
+
+    if (!splitRows.length) {
+      setError("Bitte mindestens einen Kostenträger mit Anteil auswählen.");
+      return;
+    }
+
+    const totalWeight = splitRows.reduce((sum, row) => sum + row.weight, 0);
+    if (!Number.isFinite(totalWeight) || totalWeight <= 0) {
+      setError("Die Summe der Anteile muss größer als 0 sein.");
+      return;
+    }
+
+    const itemIds = items.map((item) => item.id).filter(Boolean);
+    if (!itemIds.length) {
+      setError("Keine gültigen Positions-IDs gefunden.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setSuccess("");
+
+    const { error: deleteError } = await supabase
+      .from("receipt_item_allocations")
+      .delete()
+      .in("receipt_item_id", itemIds);
+
+    if (deleteError) {
+      setBusy(false);
+      setError(deleteError.message);
+      return;
+    }
+
+    const allocationRows = [];
+    const assignmentUpdates = [];
+
+    for (const item of items) {
+      const itemAmount = roundMoney(Number(item.amount || 0));
+      const roundedRows = distributeAmountsByWeights(splitRows, itemAmount, (row) => row.weight);
+      for (const row of roundedRows) {
+        allocationRows.push({
+          receipt_item_id: item.id,
+          account_id: accountIdByCostCenterId.get(row.costCenterId) || null,
+          cost_center_id: row.costCenterId,
+          amount: row.amount,
+        });
+      }
+
+      const primary = roundedRows.reduce((best, row) => (
+        !best || Math.abs(row.amount) > Math.abs(best.amount) ? row : best
+      ), null);
+
+      if (primary?.costCenterId) {
+        assignmentUpdates.push({ itemId: item.id, costCenterId: primary.costCenterId });
+      }
+    }
+
+    if (allocationRows.length) {
+      let insertResponse = await supabase
+        .from("receipt_item_allocations")
+        .insert(allocationRows)
+        .select("receipt_item_id");
+
+      if (insertResponse.error && String(insertResponse.error.message || "").includes("cost_center_id")) {
+        const fallbackRows = allocationRows
+          .filter((row) => row.account_id)
+          .map((row) => ({
+            receipt_item_id: row.receipt_item_id,
+            account_id: row.account_id,
+            amount: row.amount,
+          }));
+
+        if (fallbackRows.length !== allocationRows.length) {
+          setBusy(false);
+          setError("Für Kostensplits ohne verknüpftes Zahlungskonto muss zuerst die neue DB-Migration für cost_center_id ausgeführt werden.");
+          return;
+        }
+
+        insertResponse = await supabase
+          .from("receipt_item_allocations")
+          .insert(fallbackRows)
+          .select("receipt_item_id");
+      }
+
+      const { error: insertError } = insertResponse;
+
+      if (insertError) {
+        setBusy(false);
+        setError(insertError.message);
+        return;
+      }
+    }
+
+    for (const update of assignmentUpdates) {
+      const { error: patchError } = await supabase
+        .from("receipt_items")
+        .update({ assigned_cost_center_id: update.costCenterId })
+        .eq("id", update.itemId);
+
+      if (patchError) {
+        setBusy(false);
+        setError(patchError.message);
+        return;
+      }
+    }
+
+    setBusy(false);
+    setSuccess("Kostenaufteilung gespeichert.");
+    await loadItemAllocations(itemIds);
+    await refreshReceiptData(currentReceipt.id);
+  }
+
   async function assignItemToCostCenter(item, costCenterId) {
     try {
       const patchData = costCenterId 
@@ -2385,6 +2767,10 @@ function App() {
       console.log("Assigning cost center:", { itemId: item.id, costCenterId, patchData });
       
       await patchItem(item.id, patchData);
+
+      const ok = await setSingleItemAllocation(item.id, costCenterId, Number(item.amount || 0));
+      if (!ok) return;
+
       setSuccess("Kostenträger aktualisiert.");
     } catch (err) {
       const errMsg = String(err?.message || err);
@@ -2400,7 +2786,8 @@ function App() {
   }
 
   async function assignItemToAccount(item, accountId) {
-    const ok = await setSingleItemAllocation(item.id, accountId, Number(item.amount || 0));
+    const costCenterId = accountById.get(accountId)?.cost_center_id || null;
+    const ok = await setSingleItemAllocation(item.id, costCenterId, Number(item.amount || 0));
     if (!ok) return;
     setSuccess("Kostenträger aktualisiert.");
   }
@@ -2532,6 +2919,7 @@ function App() {
         name: draft.name.trim(),
         color: draft.color || "#18b6a3",
         account_type: draft.accountType || "person",
+        cost_center_id: draft.costCenterId || null,
         sort_order: Number(draft.sortOrder || 100),
       })
       .eq("id", accountId)
@@ -2590,6 +2978,7 @@ function App() {
       name: newAccount.name.trim(),
       color: newAccount.color || "#18b6a3",
       account_type: newAccount.accountType || "person",
+      cost_center_id: newAccount.costCenterId || null,
       sort_order: Number(newAccount.sortOrder || 100),
     });
 
@@ -2604,6 +2993,7 @@ function App() {
       name: "",
       color: "#18b6a3",
       accountType: "person",
+      costCenterId: "",
       sortOrder: 100,
     });
     setSuccess("Kostenträger hinzugefügt.");
@@ -2719,15 +3109,27 @@ function App() {
       }
 
       if (defaultAccountId && defaultAccountId !== defaultFamilyAccount.id) {
+        const defaultCostCenterId = accountById.get(defaultAccountId)?.cost_center_id || null;
         const allocationRows = (insertItems.data || [])
           .map((row) => ({
             receipt_item_id: row.id,
             account_id: defaultAccountId,
+            cost_center_id: defaultCostCenterId,
             amount: Number(row.amount || 0),
           }));
 
         if (allocationRows.length) {
-          const { error: allocationError } = await supabase.from("receipt_item_allocations").insert(allocationRows);
+          let allocationInsert = await supabase.from("receipt_item_allocations").insert(allocationRows);
+          if (allocationInsert.error && String(allocationInsert.error.message || "").includes("cost_center_id")) {
+            const fallbackRows = allocationRows.map((row) => ({
+              receipt_item_id: row.receipt_item_id,
+              account_id: row.account_id,
+              amount: row.amount,
+            }));
+            allocationInsert = await supabase.from("receipt_item_allocations").insert(fallbackRows);
+          }
+
+          const allocationError = allocationInsert.error;
           if (allocationError) {
             return { ok: false, message: allocationError.message };
           }
@@ -3040,7 +3442,11 @@ function App() {
       await assignItemToCostCenter(insertedItem, costCenterToAssign);
     }
 
-    setManualDraft(emptyDraft);
+    setManualDraft({
+      ...emptyDraft,
+      category: categoryForItem || "",
+      accountId: costCenterToAssign || "",
+    });
     await refreshReceiptData(selectedReceipt);
   }
 
@@ -3190,9 +3596,9 @@ function App() {
       return;
     }
 
-    const currentAlloc = primaryAccountByItemId.get(item.id);
-    if (currentAlloc?.accountId) {
-      await setSingleItemAllocation(item.id, currentAlloc.accountId, eurAmount);
+    const currentAlloc = primaryAllocationByItemId.get(item.id);
+    if (currentAlloc?.costCenterId) {
+      await rescaleItemAllocations(item.id, eurAmount, currentAlloc.costCenterId);
     }
 
     const receiptId = receipts.find((receipt) => (receipt.receipt_items || []).some((row) => row.id === item.id))?.id;
@@ -3286,9 +3692,9 @@ function App() {
         return;
       }
 
-      const currentAlloc = primaryAccountByItemId.get(item.id);
-      if (currentAlloc?.accountId) {
-        await setSingleItemAllocation(item.id, currentAlloc.accountId, eurAmount);
+      const currentAlloc = primaryAllocationByItemId.get(item.id);
+      if (currentAlloc?.costCenterId) {
+        await rescaleItemAllocations(item.id, eurAmount, currentAlloc.costCenterId);
       }
 
       const receiptId = receipts.find((receipt) => (receipt.receipt_items || []).some((row) => row.id === item.id))?.id;
@@ -3611,6 +4017,33 @@ function App() {
     setReceiptMerchantDraft(currentReceipt?.merchant || "");
     setReceiptDateDraft(currentReceipt?.receipt_date || "");
   }, [currentReceipt?.id, currentReceipt?.merchant, currentReceipt?.receipt_date]);
+
+  useEffect(() => {
+    if (!currentReceipt) return;
+    const items = Array.isArray(currentReceipt.receipt_items) ? currentReceipt.receipt_items : [];
+    if (!items.length) return;
+
+    const lastItem = items[items.length - 1];
+    const fallbackCategory = lastItem?.category || "";
+    const fallbackAccountId = assignedCostCenterByItemId.get(lastItem?.id) || lastItem?.assigned_cost_center_id || "";
+
+    setManualDraft((prev) => {
+      if (prev.description || prev.amount) return prev;
+
+      const nextCategory = prev.category || fallbackCategory;
+      const nextAccountId = prev.accountId || fallbackAccountId;
+
+      if (nextCategory === prev.category && nextAccountId === prev.accountId) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        category: nextCategory,
+        accountId: nextAccountId,
+      };
+    });
+  }, [currentReceipt, assignedCostCenterByItemId]);
 
   if (authLoading) {
     return (
@@ -4222,10 +4655,17 @@ function App() {
                 )}
 
                 {accountCatalogReady && (
+                  <p className="hint" style={{ marginBottom: "10px" }}>
+                    Nur Konten mit verknüpftem Kostenträger erscheinen in der Verrechnung als Zahler oder Empfänger.
+                  </p>
+                )}
+
+                {accountCatalogReady && (
                   <div className="account-edit-head">
                     <span>Name</span>
                     <span>Farbe</span>
                     <span>Typ</span>
+                    <span>Verknüpfter Kostenträger</span>
                     <span>Sortierung</span>
                     <span>Aktion</span>
                     <span>Aktion</span>
@@ -4237,6 +4677,7 @@ function App() {
                     name: account.name || "",
                     color: account.color || "#18b6a3",
                     accountType: account.account_type || "person",
+                    costCenterId: account.cost_center_id || "",
                     sortOrder: Number(account.sort_order || 100),
                   };
 
@@ -4261,6 +4702,15 @@ function App() {
                       >
                         <option value="person">Person</option>
                         <option value="family">Familie</option>
+                      </select>
+                      <select
+                        value={draft.costCenterId || ""}
+                        onChange={(e) => updateAccountDraft(account.id, "costCenterId", e.target.value)}
+                      >
+                        <option value="">-- kein Kostenträger --</option>
+                        {costCenterOptions.map((costCenter) => (
+                          <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
+                        ))}
                       </select>
                       <input
                         className="account-sort-input"
@@ -4299,6 +4749,15 @@ function App() {
                     >
                       <option value="person">Person</option>
                       <option value="family">Familie</option>
+                    </select>
+                    <select
+                      value={newAccount.costCenterId || ""}
+                      onChange={(e) => setNewAccount((s) => ({ ...s, costCenterId: e.target.value }))}
+                    >
+                      <option value="">-- kein Kostenträger --</option>
+                      {costCenterOptions.map((costCenter) => (
+                        <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
+                      ))}
                     </select>
                     <input
                       className="account-sort-input"
@@ -4917,6 +5376,106 @@ function App() {
                 ))}
               </div>
 
+              <div className="manual-box" style={{ marginTop: "12px" }}>
+                <h3>Kostenaufteilung für diesen Beleg</h3>
+                <p className="hint" style={{ marginTop: "0" }}>
+                  Anteile akzeptieren Brüche (z.B. 1/3) oder Dezimalwerte (z.B. 0,5).
+                </p>
+
+                <div style={{ display: "grid", gap: "8px", marginBottom: "10px" }}>
+                  {receiptSplitRows.map((row, index) => (
+                    <div key={`split-row-${index}`} style={{ display: "grid", gridTemplateColumns: "1.4fr 0.8fr auto", gap: "8px", alignItems: "center" }}>
+                      <div className={`color-select-wrapper ${!row.costCenterId ? "missing-required" : ""}`} style={!row.costCenterId
+                        ? { border: "2px solid rgba(0,0,0,0.2)", borderRadius: "12px", backgroundColor: "transparent", color: "#10243e", height: "32px", minWidth: 0, display: "flex", alignItems: "center" }
+                        : { ...buildColorInputStyle(costCenterOptions.find((cc) => cc.id === row.costCenterId)?.color), height: "32px", minWidth: 0, display: "flex", alignItems: "center" }}
+                      >
+                        <select
+                          value={row.costCenterId || ""}
+                          onChange={(e) => updateReceiptSplitRow(index, { costCenterId: e.target.value || "" })}
+                          style={{ width: "100%", height: "100%", fontSize: "0.85rem" }}
+                        >
+                          <option value="">- Kostenträger -</option>
+                          {costCenterOptions.map((costCenter) => (
+                            <option key={costCenter.id} value={costCenter.id}>{costCenter.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <input
+                        type="text"
+                        placeholder="Anteil (z.B. 1/3)"
+                        value={row.share}
+                        onChange={(e) => updateReceiptSplitRow(index, { share: e.target.value })}
+                        style={{ height: "32px", borderRadius: "10px", border: "1px solid rgba(16,36,62,0.2)", padding: "0 10px" }}
+                      />
+
+                      <button
+                        className="btn secondary mini-btn"
+                        type="button"
+                        onClick={() => removeReceiptSplitRow(index)}
+                        disabled={receiptSplitRows.length <= 1}
+                        title="Zeile entfernen"
+                      >
+                        Entfernen
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "10px" }}>
+                  <button className="btn secondary mini-btn" type="button" onClick={addReceiptSplitRow}>
+                    + Kostenträger
+                  </button>
+                  <button className="btn secondary mini-btn" type="button" onClick={applyReceiptSplitByCostCenters} disabled={busy}>
+                    Aufteilung anwenden
+                  </button>
+                </div>
+
+                {(() => {
+                  if (!currentReceipt?.receipt_items?.length) return null;
+
+                  const itemIds = new Set((currentReceipt.receipt_items || []).map((item) => item.id));
+                  const totalsByCostCenterId = new Map();
+
+                  for (const alloc of itemAllocations) {
+                    if (!itemIds.has(alloc.receipt_item_id)) continue;
+                    const costCenterId = resolveAllocationCostCenterId(alloc);
+                    if (!costCenterId) continue;
+                    const old = totalsByCostCenterId.get(costCenterId) || 0;
+                    totalsByCostCenterId.set(costCenterId, old + Number(alloc.amount || 0));
+                  }
+
+                  const rows = Array.from(totalsByCostCenterId.entries())
+                    .map(([costCenterId, total]) => {
+                      const costCenter = costCenterById.get(costCenterId);
+                      return {
+                        key: costCenterId,
+                        name: costCenter?.name || "Unbekannt",
+                        color: costCenter?.color,
+                        total,
+                      };
+                    })
+                    .filter((row) => Math.abs(row.total) > 0.0001)
+                    .sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+
+                  if (!rows.length) return null;
+
+                  return (
+                    <div className="cost-group-summary-list" style={{ marginTop: "6px" }}>
+                      {rows.map((row) => (
+                        <div key={row.key} className="cost-group-summary-row" style={buildSummaryRowStyle(row.color)}>
+                          <span className="cost-group-name">
+                            <span className="cost-group-dot" style={{ backgroundColor: row.color }} />
+                            {row.name}
+                          </span>
+                          <strong>{euro.format(row.total)}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+
               {!accountCatalogReady && (
                 <p className="hint error">
                   Kostenträger-Tabelle noch nicht verfügbar: {accountCatalogMessage}
@@ -5295,36 +5854,79 @@ function App() {
                 zahlungen[accountId] = (zahlungen[accountId] || 0) + amount;
               }
               
-              // 2. KOSTENTRÄGER: Sum items by their assigned_cost_center_id
-              // Then map back to the family_account that has that cost_center_id
-              const kostentraegerPerCostCenter = {}; // costCenterId -> amount
-              for (const receipt of receipts) {
-                for (const item of (receipt.receipt_items || [])) {
-                  if (item.is_ignored === true) continue;
-                  const ccId = item.assigned_cost_center_id;
-                  if (ccId) {
-                    kostentraegerPerCostCenter[ccId] = (kostentraegerPerCostCenter[ccId] || 0) + Number(item.amount || 0);
-                  }
-                }
-              }
-              
-              // Map cost centers back to accounts
+              // 2. KOSTENTRÄGER: Prefer receipt_item_allocations (supports splits), fallback to assigned_cost_center_id.
               const kostentraegerPerAccount = {}; // accountId -> amount
               for (const account of accounts) {
                 kostentraegerPerAccount[account.id] = 0;
               }
               kostentraegerPerAccount[defaultFamilyAccount.id] = 0;
-              
-              // Sum by account based on which cost_center belongs to which account
+
+              const accountIdByCostCenterId = new Map();
               for (const account of accounts) {
-                const ccId = account.cost_center_id;
-                if (ccId && kostentraegerPerCostCenter[ccId]) {
-                  kostentraegerPerAccount[account.id] = kostentraegerPerCostCenter[ccId];
+                if (account?.cost_center_id) {
+                  accountIdByCostCenterId.set(account.cost_center_id, account.id);
                 }
               }
-              // Also check default family account's cost center
-              if (defaultFamilyAccount.cost_center_id && kostentraegerPerCostCenter[defaultFamilyAccount.cost_center_id]) {
-                kostentraegerPerAccount[defaultFamilyAccount.id] = kostentraegerPerCostCenter[defaultFamilyAccount.cost_center_id];
+
+              const allocByItemId = new Map();
+              for (const alloc of itemAllocations) {
+                const list = allocByItemId.get(alloc.receipt_item_id) || [];
+                list.push(alloc);
+                allocByItemId.set(alloc.receipt_item_id, list);
+              }
+
+              const kostentraegerPerCostCenter = {}; // only for debug output
+
+              for (const receipt of receipts) {
+                for (const item of (receipt.receipt_items || [])) {
+                  if (item.is_ignored === true) continue;
+
+                  const itemAmount = Number(item.amount || 0);
+                  const allocations = allocByItemId.get(item.id) || [];
+
+                  if (allocations.length) {
+                    const totalAllocatedRaw = allocations.reduce((sum, alloc) => sum + Number(alloc.amount || 0), 0);
+                    const factor = totalAllocatedRaw !== 0 && Math.abs(totalAllocatedRaw) > Math.abs(itemAmount)
+                      ? itemAmount / totalAllocatedRaw
+                      : 1;
+
+                    let allocated = 0;
+                    for (const alloc of allocations) {
+                      const amount = Number(alloc.amount || 0) * factor;
+                      const costCenterId = resolveAllocationCostCenterId(alloc);
+                      if (!costCenterId) continue;
+
+                      const accountId = alloc.account_id || accountIdByCostCenterId.get(costCenterId) || null;
+                      if (accountId) {
+                        kostentraegerPerAccount[accountId] = (kostentraegerPerAccount[accountId] || 0) + amount;
+                      }
+                      allocated += amount;
+
+                      kostentraegerPerCostCenter[costCenterId] = (kostentraegerPerCostCenter[costCenterId] || 0) + amount;
+                    }
+
+                    const remainder = itemAmount - allocated;
+                    if (Math.abs(remainder) > 0.0001) {
+                      const fallbackAccountId = accountIdByCostCenterId.get(item.assigned_cost_center_id) || null;
+                      if (fallbackAccountId) {
+                        kostentraegerPerAccount[fallbackAccountId] = (kostentraegerPerAccount[fallbackAccountId] || 0) + remainder;
+                      }
+                      if (item.assigned_cost_center_id) {
+                        kostentraegerPerCostCenter[item.assigned_cost_center_id] = (kostentraegerPerCostCenter[item.assigned_cost_center_id] || 0) + remainder;
+                      }
+                    }
+
+                    continue;
+                  }
+
+                  const fallbackAccountId = accountIdByCostCenterId.get(item.assigned_cost_center_id) || null;
+                  if (fallbackAccountId) {
+                    kostentraegerPerAccount[fallbackAccountId] = (kostentraegerPerAccount[fallbackAccountId] || 0) + itemAmount;
+                  }
+                  if (item.assigned_cost_center_id) {
+                    kostentraegerPerCostCenter[item.assigned_cost_center_id] = (kostentraegerPerCostCenter[item.assigned_cost_center_id] || 0) + itemAmount;
+                  }
+                }
               }
               
               // 3. AUSGLEICH = Zahlungen - Kostenträger
@@ -5339,6 +5941,106 @@ function App() {
               console.log("  Kostenträger per CostCenter:", kostentraegerPerCostCenter);
               console.log("  Kostenträger per Account:", kostentraegerPerAccount);
               console.log("  Ausgleiche:", ausgleiche);
+
+              // 4. PAARWEISE AUSGLEICHE: debtor account reimburses the actual paying account.
+              const transferMatrix = new Map();
+              const addTransfer = (fromAccountId, toAccountId, amount) => {
+                if (!fromAccountId || !toAccountId || fromAccountId === toAccountId || amount <= 0.0001) return;
+                const key = `${fromAccountId}__${toAccountId}`;
+                transferMatrix.set(key, (transferMatrix.get(key) || 0) + amount);
+              };
+
+              for (const receipt of receipts) {
+                const payerAccountId = receipt.payment_account_id || defaultFamilyAccount.id;
+
+                for (const item of (receipt.receipt_items || [])) {
+                  if (item.is_ignored === true) continue;
+
+                  const itemAmount = Number(item.amount || 0);
+                  const allocations = allocByItemId.get(item.id) || [];
+
+                  if (allocations.length) {
+                    const totalAllocatedRaw = allocations.reduce((sum, alloc) => sum + Number(alloc.amount || 0), 0);
+                    const factor = totalAllocatedRaw !== 0 && Math.abs(totalAllocatedRaw) > Math.abs(itemAmount)
+                      ? itemAmount / totalAllocatedRaw
+                      : 1;
+
+                    let allocated = 0;
+                    for (const alloc of allocations) {
+                      const costCenterId = resolveAllocationCostCenterId(alloc);
+                      if (!costCenterId) continue;
+
+                      const debtorAccountId = alloc.account_id || accountIdByCostCenterId.get(costCenterId) || null;
+                      const amount = Number(alloc.amount || 0) * factor;
+                      if (debtorAccountId) {
+                        addTransfer(debtorAccountId, payerAccountId, amount);
+                      }
+                      allocated += amount;
+                    }
+
+                    const remainder = itemAmount - allocated;
+                    if (Math.abs(remainder) > 0.0001) {
+                      const debtorAccountId = accountIdByCostCenterId.get(item.assigned_cost_center_id) || null;
+                      if (debtorAccountId) {
+                        addTransfer(debtorAccountId, payerAccountId, remainder);
+                      }
+                    }
+
+                    continue;
+                  }
+
+                  const debtorAccountId = accountIdByCostCenterId.get(item.assigned_cost_center_id) || null;
+                  if (debtorAccountId) {
+                    addTransfer(debtorAccountId, payerAccountId, itemAmount);
+                  }
+                }
+              }
+
+              // Subtract already booked settlement receipts from the pairwise suggestions.
+              const bookedTransferMatrix = new Map();
+              for (const receipt of receipts) {
+                if (receipt?.merchant !== "Ausgleichszahlung") continue;
+                if (Number(receipt?.total_amount || 0) <= 0) continue;
+
+                const description = String(receipt?.receipt_items?.[0]?.description || "").trim();
+                const match = description.match(/^(.+?)\s+an\s+(.+)$/);
+                if (!match) continue;
+
+                const debtorName = match[1]?.trim();
+                const creditorName = match[2]?.trim();
+                const debtorAccount = accounts.find((account) => account.name === debtorName);
+                const creditorAccount = accounts.find((account) => account.name === creditorName);
+                if (!debtorAccount?.id || !creditorAccount?.id) continue;
+
+                const key = `${debtorAccount.id}__${creditorAccount.id}`;
+                bookedTransferMatrix.set(key, (bookedTransferMatrix.get(key) || 0) + Number(receipt.total_amount || 0));
+              }
+
+              // Net opposite directions, but keep bilateral obligations instead of global creditor pooling.
+              const pairwiseTransfers = [];
+              const processedPairs = new Set();
+              for (const [key, amount] of transferMatrix.entries()) {
+                if (processedPairs.has(key)) continue;
+
+                const [fromAccountId, toAccountId] = key.split("__");
+                const reverseKey = `${toAccountId}__${fromAccountId}`;
+                const reverseAmount = transferMatrix.get(reverseKey) || 0;
+                const bookedAmount = bookedTransferMatrix.get(key) || 0;
+                const reverseBookedAmount = bookedTransferMatrix.get(reverseKey) || 0;
+                const netAmount = (amount - bookedAmount) - (reverseAmount - reverseBookedAmount);
+
+                processedPairs.add(key);
+                processedPairs.add(reverseKey);
+
+                if (netAmount > 0.01) {
+                  pairwiseTransfers.push({
+                    fromAccountId,
+                    toAccountId,
+                    amount: roundMoney(netAmount),
+                  });
+                }
+              }
+              pairwiseTransfers.sort((a, b) => b.amount - a.amount);
               
               // Get debtors (negative = zahlt) and creditors (positive = erhält)
               // Both are PAYMENT ACCOUNTS (Zahlungskonten), not cost centers!
@@ -5378,34 +6080,31 @@ function App() {
                   </div>
                   
                   <h3 style={{ marginTop: "20px", marginBottom: "12px" }}>Ausgleichszahlungen buchen</h3>
-                  <div style={{ display: "grid", gap: "8px" }}>
-                    {debtors.map(debtor => {
-                      const validCreditors = creditors.filter(creditor => {
-                        // Only show if creditor has a valid account with cost_center
-                        return creditor.account?.cost_center_id;
-                      });
-                      
-                      if (!validCreditors.length) return null;
-                      
-                      return (
-                        <div key={`settlement-${debtor.id}`} style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
-                          <strong style={{ color: debtor.color }}>{debtor.name}</strong>
-                          <span>→</span>
-                          {validCreditors.map(creditor => (
+                  {!pairwiseTransfers.length && <p className="hint">Keine konkreten Ausgleichsbuchungen vorhanden.</p>}
+                  {!!pairwiseTransfers.length && (
+                    <div style={{ display: "grid", gap: "8px" }}>
+                      {pairwiseTransfers.map((transfer) => {
+                        const debtor = accounts.find((account) => account.id === transfer.fromAccountId);
+                        const creditor = accounts.find((account) => account.id === transfer.toAccountId);
+                        if (!debtor || !creditor) return null;
+
+                        return (
+                          <div key={`settlement-${transfer.fromAccountId}-${transfer.toAccountId}`} style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+                            <strong style={{ color: debtor.color }}>{debtor.name}</strong>
+                            <span>→</span>
                             <button
-                              key={`settlement-${debtor.id}-${creditor.id}`}
                               className="btn secondary mini-btn"
                               disabled={busy}
-                              onClick={() => createSettlementReceipt(debtor.account, creditor.account, creditor.amount)}
-                              title={`${debtor.name} zahlt ${creditor.amount}€ an ${creditor.name}`}
+                              onClick={() => createSettlementReceipt(debtor, creditor, transfer.amount)}
+                              title={`${debtor.name} zahlt ${euro.format(transfer.amount)} an ${creditor.name}`}
                             >
-                              {creditor.name} {euro.format(creditor.amount)}
+                              {creditor.name} {euro.format(transfer.amount)}
                             </button>
-                          ))}
-                        </div>
-                      );
-                    })}
-                  </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </>
               );
             })()}

@@ -15,10 +15,13 @@ create table if not exists public.family_accounts (
 create table if not exists public.receipt_item_allocations (
   id uuid primary key default gen_random_uuid(),
   receipt_item_id uuid not null references public.receipt_items(id) on delete cascade,
-  account_id uuid not null references public.family_accounts(id) on delete cascade,
+  account_id uuid references public.family_accounts(id) on delete cascade,
+  cost_center_id uuid references public.cost_centers(id) on delete cascade,
   amount numeric(12,2) not null check (amount >= 0),
   created_at timestamptz not null default now(),
-  unique (receipt_item_id, account_id)
+  unique (receipt_item_id, account_id),
+  unique (receipt_item_id, cost_center_id),
+  check (account_id is not null or cost_center_id is not null)
 );
 
 create index if not exists idx_family_accounts_household_sort
@@ -29,6 +32,9 @@ create index if not exists idx_receipt_item_allocations_item
 
 create index if not exists idx_receipt_item_allocations_account
   on public.receipt_item_allocations(account_id);
+
+create index if not exists idx_receipt_item_allocations_cost_center
+  on public.receipt_item_allocations(cost_center_id);
 
 alter table public.family_accounts enable row level security;
 alter table public.receipt_item_allocations enable row level security;
